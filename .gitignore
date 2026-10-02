@@ -1,0 +1,4 @@
+/releases/
+*.log
+/tools/.inspector-check/
+/Screenshot*.png

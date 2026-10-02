@@ -1,0 +1,16 @@
+-- @description ReaSpect - context-sensitive inspector
+-- @version 0.1.0-test
+-- @author Davvo
+-- @link https://forum.cockos.com/showthread.php?t=311132
+-- @about Testing release. Requires REAPER 6.8+ and ReaImGui. Read EULA.md before use.
+-- @changelog Initial ReaPack testing release.
+-- @metapackage
+-- @provides
+--   [main] ../ReaSpect.lua > ReaSpect.lua
+--   core/*.lua > ReaSpect/core/
+--   widgets/*.lua > ReaSpect/widgets/
+--   panels/*.lua > ReaSpect/panels/
+--   inspectors/*.lua > ReaSpect/inspectors/
+--   ../EULA.md > EULA.md
+
+-- ReaPack manifest. The executable entry point is ../ReaSpect.lua.
