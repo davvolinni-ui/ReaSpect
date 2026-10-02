@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<index version="1" name="ReaSpect" commit="5d2fb8eb9ffd27f18124622c9eafb6b29f197974">
+  <category name="ReaSpect">
+    <reapack name="ReaSpect.lua" type="script" desc="ReaSpect - context-sensitive inspector">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Testing release. Requires REAPER 6.8+ and ReaImGui. Read EULA.md before use.\par}
+}
+]]></description>
+        <link rel="website">https://forum.cockos.com/showthread.php?t=311132</link>
+      </metadata>
+      <version name="0.1.0-test" author="Davvo" time="2026-10-02T07:54:13Z">
+        <changelog><![CDATA[Initial ReaPack testing release.]]></changelog>
+        <source main="main" file="ReaSpect.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect.lua</source>
+        <source file="ReaSpect/core/diagnostics.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/core/diagnostics.lua</source>
+        <source file="ReaSpect/core/fx_search.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/core/fx_search.lua</source>
+        <source file="ReaSpect/core/item_actions.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/core/item_actions.lua</source>
+        <source file="ReaSpect/core/item_selection.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/core/item_selection.lua</source>
+        <source file="ReaSpect/core/native_ui.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/core/native_ui.lua</source>
+        <source file="ReaSpect/core/pan.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/core/pan.lua</source>
+        <source file="ReaSpect/core/persistence.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/core/persistence.lua</source>
+        <source file="ReaSpect/core/reaper_api.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/core/reaper_api.lua</source>
+        <source file="ReaSpect/core/state.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/core/state.lua</source>
+        <source file="ReaSpect/core/theme.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/core/theme.lua</source>
+        <source file="ReaSpect/core/track_actions.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/core/track_actions.lua</source>
+        <source file="ReaSpect/core/undo.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/core/undo.lua</source>
+        <source file="ReaSpect/widgets/color.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/color.lua</source>
+        <source file="ReaSpect/widgets/controls.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/controls.lua</source>
+        <source file="ReaSpect/widgets/event_header.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/event_header.lua</source>
+        <source file="ReaSpect/widgets/fader.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/fader.lua</source>
+        <source file="ReaSpect/widgets/fades.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/fades.lua</source>
+        <source file="ReaSpect/widgets/fx_list.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/fx_list.lua</source>
+        <source file="ReaSpect/widgets/fx_parameters.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/fx_parameters.lua</source>
+        <source file="ReaSpect/widgets/icon_browser.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/icon_browser.lua</source>
+        <source file="ReaSpect/widgets/input_selector.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/input_selector.lua</source>
+        <source file="ReaSpect/widgets/meter.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/meter.lua</source>
+        <source file="ReaSpect/widgets/panel_body.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/panel_body.lua</source>
+        <source file="ReaSpect/widgets/property.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/property.lua</source>
+        <source file="ReaSpect/widgets/rack.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/rack.lua</source>
+        <source file="ReaSpect/widgets/routing.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/routing.lua</source>
+        <source file="ReaSpect/widgets/take_source.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/take_source.lua</source>
+        <source file="ReaSpect/widgets/track_tools.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/widgets/track_tools.lua</source>
+        <source file="ReaSpect/panels/channel.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/panels/channel.lua</source>
+        <source file="ReaSpect/panels/item.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/panels/item.lua</source>
+        <source file="ReaSpect/panels/track.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/panels/track.lua</source>
+        <source file="ReaSpect/inspectors/audio.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/inspectors/audio.lua</source>
+        <source file="ReaSpect/inspectors/midi.lua">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/ReaSpect/inspectors/midi.lua</source>
+        <source file="EULA.md">https://github.com/davvolinni-ui/ReaSpect/raw/5d2fb8eb9ffd27f18124622c9eafb6b29f197974/EULA.md</source>
+      </version>
+    </reapack>
+  </category>
+  <metadata>
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 ReaSpect\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 ReaSpect is a narrow ReaImGui inspector for REAPER. Run {\f1 ReaSpect.lua} from the Action List, then dock or resize the window beside the arrange view.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Testing release by {\b Davvo}. Requires REAPER 6.8+ and the ReaImGui extension.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Install through ReaPack\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab Install ReaPack and ReaImGui if needed.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab Choose {\b Extensions > ReaPack > Import repositories} and import: {\f1 https://raw.githubusercontent.com/davvolinni-ui/ReaSpect/main/index.xml}\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab Synchronize packages, browse for {\b ReaSpect - context-sensitive inspector}, and install it. If the testing version is hidden, enable pre-release versions in ReaPack or select the version explicitly.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 4.\tx360\tab Run {\b ReaSpect.lua} from REAPER's Action List.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 ReaPack installs the entry point and all supporting modules together. Restart ReaSpect after updating. If migrating from a ZIP installation, stop the old instance and remove its Action List entry before running the ReaPack copy.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Contact and support: {\field{\*\fldinst{HYPERLINK "https://forum.cockos.com/showthread.php?t=311132"}}{\fldrslt{\ul
+ReaSpect forum thread
+}}}
+. ReaSpect is distributed under its {\field{\*\fldinst{HYPERLINK "EULA.md"}}{\fldrslt{\ul
+End User License Agreement
+}}}
+. Public access to this repository does not grant an open-source license.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Features and behavior\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The implementation is split into a small API/state layer, reusable widgets, and independent Track, Item/Event, and Channel panels. Selection and project state are refreshed through REAPER's selection APIs and project state change counter; FX, sends, and receives are rebuilt only when their section is opened or the project changes.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Implemented native controls include:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Track name/color, automation, correctly mapped timebase, playback offset in milliseconds or samples, and a compact routing summary. Recording opens contextually and includes mono/stereo/MIDI input, MIDI channel, record mode, monitoring, auto-arm, and Input FX access. Advanced holds pan mode/law, channel count, parent/master send, and folder/placement settings.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Freeze defaults to stereo; the options menu offers mono, multichannel and unfreeze. Frozen tracks show Unfreeze and their freeze-pass count when supported. These explicit actions use REAPER's native render/restore workflow and retain the track selection.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Optional FX parameters section displays assigned track-control parameters, with wheel adjustment, plugin-default reset when available, and show/hide envelope buttons. Add last touched exposes a parameter from the focused track; existing envelope points, arm and bypass settings are preserved.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Track tools keeps less frequent actions together: render mono/stereo/multichannel stems (and mute originals), open track envelopes, choose/remove native track icons, and open grouping setup or the grouping matrix. Assigned track icons appear in the fixed Track header; otherwise it shows the media-type glyph.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Click the Track header icon to open a searchable thumbnail browser of REAPER's track icon library. Choose a thumbnail for that focused track, use None to remove it, or Browse files... for a custom image. Right-click the header icon to remove it. The fallback glyph and tooltip describe the track's audio/MIDI/mixed contents; Event icons describe the active event/take or mixed selection, with a separate empty-event glyph.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Matching Track/Event headers with media icons, event identity, active-take rename, and a color picker. The event inspector leads with paired Position/Length controls and compact Loop/Lock/Mute switches.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Audio take gain/pan, decimal semitone transpose, one-cent fine-tuning, rate, preserve pitch, dynamically enumerated pitch algorithms, manual fades and all seven native fade shapes. Normalize opens REAPER's peak/RMS/LUFS dialog; Reverse uses its native take-reverse action. Event FX opens the active take chain, with an event chooser for multi-selection.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Contextual active-take switching and Take / Source details: source offset, correctly mapped audio channels, source file/format/length, and native source/item properties. MIDI selections have take transpose/rate, note/CC counts, and direct access to the MIDI editor.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Channel strip with track-colour identity, input/output buttons, mode-aware pan controls, mute/solo/arm/monitor, meter, fader, automation, polarity, routing, and a ReaperTips-style right-side insert/routing stack. Stereo pan shows width; dual pan shows independent left/right knobs; balance modes show one pan knob. Group edits skip tracks with incompatible pan controls.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Property edits use native REAPER APIs and descriptive undo blocks. Native dialogs/actions run on the following deferred callback, before any ImGui drawing, and validate the captured project/item/take context. This also covers native recording/routing menus, FX windows, rename dialogs and plugin loading. UI state is stored with REAPER ExtState ({\f1 panel_*}, {\f1 height_*}, and {\f1 section_*} keys).\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The inspector draws on every REAPER defer cycle: ReaImGui requires its context to be used each cycle. Skipping callbacks to cap FPS can expire the context and cause an invalid-context error at the next theme color push.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Track, Event, and Channel share one focused track. Selecting a new event focuses its owning track; selecting a different track shows only that track's selected events, or an empty Event panel. REAPER's cross-track arrange selection is preserved, but Event edits affect only the focused track. Track multi-selection remains available for group track edits.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Multi-selection shows differing values as {\f1 \u8212-}; enter a value to set it across the inspected selection. Position moves the selection as a group and preserves its spacing. Plain wheel edits numeric controls, knobs, faders, option selectors, and switches; Shift gives finer numeric steps and Ctrl gives larger steps. Integer controls retain valid whole steps. Wheel edits preserve differences between mixed numeric values. Hovered controls consume the wheel, including at their limits; unused panel space and list labels scroll normally. Right-click resets values with meaningful defaults (gain/pan/transpose/offset/fades to zero, rate to 1, width to 100%, and so on). Position, length, active take, folder structure, and other controls without a safe generic default are not reset. The mixer input button opens source choices for mono, stereo, valid multichannel, and MIDI device/channel; right-click resets input to None. Arm/monitor retain native recording-option menus. Manual fade edits preserve automatic crossfades, and gain edits preserve take polarity.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Detailed MIDI note editing remains in REAPER's MIDI editor. Audio source channel mode is not presented as MIDI channel remapping. Fixed-lane controls require REAPER 7; freeze status requires REAPER 7.43. Native actions and pitch algorithms are offered only when the installed host exposes them. Fade curves use the native menu order (Linear, then Curves 2\u8211-7).\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The default three-panel proportions are Track 33%, Item 42%, and Channel 25%; previously saved custom splitter positions are preserved. The Channel toolbar button cycles through mixer + FX/Sends, FX/Sends only, and hidden, remembering the choice across restarts. Right-click cycles backwards. FX/Sends-only mode uses the full panel width and remains available in narrow docks. The Channel panel uses the same 102-unit selected-track strip width at every height. A short panel reduces its visible state buttons to Mute and Solo; at greater height it reveals input, routing, monitoring, automation, phase, and arm without widening the strip. Its meter/fader bay stretches to the bottom footer, while FX and Sends remain alongside it for the full panel height. Track and Event identity headers stay fixed while their property bodies scroll independently.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The FX label opens the selected track's chain; right-clicking it or clicking a blank insert slot opens ReaSpect's installed-FX picker. Each insert has a bypass marker and a context menu for add/replace, wet/dry, serial/parallel mode, bypass, offline, rename and delete. Clicking an FX toggles its floating window; Ctrl-click opens the chain at that FX. Internal drag/reorder is supported; native FX Browser drag-and-drop is not implemented. The adjacent header light bypasses the entire chain while retaining each insert's bypass state.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 FX and routing stay in one rack with independently scrolling lists and fixed narrow scrollbar gutters. The FX header shares the rows' height and bypass-column width. The divider initially sizes the sections from their contents; drag or wheel it to adjust, or right-click to return to automatic sizing. Manual adjustments are remembered. Blank Sends rows and {\f1 +} open a destination chooser with feedback protection. Parent and already-connected destinations remain selectable to add another send; their labels describe existing routes. Sends and receives have wheel-adjustable level knobs with right-click/double-click unity reset. Shift-click a route to mute, Alt-click to remove, Ctrl-click to go to its other track, or right-click its name for level, pan, mode, mute, mono and polarity. Click the name or the details' Audio / MIDI routing button for REAPER's full routing window. Hardware outputs, detailed audio/MIDI mappings and routing envelopes remain in that native window. The palette icon opens the theme editor.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 If REAPER becomes unresponsive while ReaSpect still responds, {\f1 ReaSpect-diagnostics.log} beside the main script records native-action starts/returns and errors. On Windows with JS_ReaScriptAPI, it also records changes in whether REAPER's main window is enabled. The log is capped at 64 KiB and unchanged frames do not write to it. A disabled window can indicate a native modal dialog; this is diagnostic evidence, not proof of the lockup's cause. Restart ReaSpect after updating to load the changes.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Diagnostics are off by default. To enable them for troubleshooting, run {\f1 reaper.SetExtState('ReaSpect','diagnostics_enabled','1',true)} in a ReaScript, then restart ReaSpect. Set the value to {\f1 0} and restart to disable them. Logs stay on your computer.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Publishing updates\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The package metadata lives in {\f1 ReaSpect/ReaSpect.lua}. This is a ReaPack manifest; the executable source remains at the repository root. The manifest maps the modules into the directory structure required by the executable.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Upload only the contents of the prepared {\f1 releases/reapack} folder to the {\f1 main} branch. It contains the required Lua files, EULA, README, and publishing configuration. GitHub Actions validates the package, then generates and commits {\f1 index.xml} with download URLs pinned to the source commit. The import URL becomes usable after that workflow completes. Repository Actions must have permission to write repository contents; branch protection must allow the index bot's commit.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 For each update, increase {\f1 @version} and update {\f1 @changelog} in the manifest before pushing. ReaPack preserves prior versions in the index, so do not delete {\f1 index.xml} between releases. Synchronize in ReaPack to receive new versions.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 ZIP archives, diagnostic logs, screenshots, and native test profiles are excluded from Git through {\f1 .gitignore}.\par}
+}
+]]></description>
+    <link rel="website">https://forum.cockos.com/showthread.php?t=311132</link>
+  </metadata>
+</index>
