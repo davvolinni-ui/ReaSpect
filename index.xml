@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaSpect" commit="25db90dc27cdf85457f6cbaba8fe1cf46be0ace5">
+<index version="1" name="ReaSpect" commit="f178993636da3973d365509ec7fdb2f940638386">
   <category name="ReaSpect">
     <reapack name="ReaSpect.lua" type="script" desc="ReaSpect - context-sensitive inspector">
       <metadata>
@@ -94,6 +94,49 @@ Remove redundant single-type event captions; retain mixed-selection summaries an
         <source file="ReaSpect/inspectors/audio.lua">https://github.com/davvolinni-ui/ReaSpect/raw/25db90dc27cdf85457f6cbaba8fe1cf46be0ace5/ReaSpect/inspectors/audio.lua</source>
         <source file="ReaSpect/inspectors/midi.lua">https://github.com/davvolinni-ui/ReaSpect/raw/25db90dc27cdf85457f6cbaba8fe1cf46be0ace5/ReaSpect/inspectors/midi.lua</source>
         <source file="EULA.md">https://github.com/davvolinni-ui/ReaSpect/raw/25db90dc27cdf85457f6cbaba8fe1cf46be0ace5/EULA.md</source>
+      </version>
+      <version name="0.1.2-test" author="Davvo" time="2026-10-05T23:31:58Z">
+        <changelog><![CDATA[Improve light-theme surfaces, FX/Sends slots, popups and selection contrast.
+Make recording, monitoring, polarity and automation controls readable in light mode.
+Keep icon-picker previews and labels readable when hovered or selected.
+Remove decorative vertical separators from track and event headers.]]></changelog>
+        <source main="main" file="ReaSpect.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect.lua</source>
+        <source file="ReaSpect/core/diagnostics.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/diagnostics.lua</source>
+        <source file="ReaSpect/core/fx_search.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/fx_search.lua</source>
+        <source file="ReaSpect/core/item_actions.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/item_actions.lua</source>
+        <source file="ReaSpect/core/item_selection.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/item_selection.lua</source>
+        <source file="ReaSpect/core/native_ui.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/native_ui.lua</source>
+        <source file="ReaSpect/core/pan.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/pan.lua</source>
+        <source file="ReaSpect/core/persistence.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/persistence.lua</source>
+        <source file="ReaSpect/core/reaper_api.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/reaper_api.lua</source>
+        <source file="ReaSpect/core/slots.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/slots.lua</source>
+        <source file="ReaSpect/core/state.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/state.lua</source>
+        <source file="ReaSpect/core/theme.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/theme.lua</source>
+        <source file="ReaSpect/core/track_actions.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/track_actions.lua</source>
+        <source file="ReaSpect/core/undo.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/core/undo.lua</source>
+        <source file="ReaSpect/widgets/color.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/color.lua</source>
+        <source file="ReaSpect/widgets/controls.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/controls.lua</source>
+        <source file="ReaSpect/widgets/event_header.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/event_header.lua</source>
+        <source file="ReaSpect/widgets/fader.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/fader.lua</source>
+        <source file="ReaSpect/widgets/fades.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/fades.lua</source>
+        <source file="ReaSpect/widgets/fx_list.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/fx_list.lua</source>
+        <source file="ReaSpect/widgets/fx_parameters.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/fx_parameters.lua</source>
+        <source file="ReaSpect/widgets/icon_browser.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/icon_browser.lua</source>
+        <source file="ReaSpect/widgets/input_selector.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/input_selector.lua</source>
+        <source file="ReaSpect/widgets/meter.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/meter.lua</source>
+        <source file="ReaSpect/widgets/panel_body.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/panel_body.lua</source>
+        <source file="ReaSpect/widgets/property.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/property.lua</source>
+        <source file="ReaSpect/widgets/rack.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/rack.lua</source>
+        <source file="ReaSpect/widgets/routing.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/routing.lua</source>
+        <source file="ReaSpect/widgets/take_source.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/take_source.lua</source>
+        <source file="ReaSpect/widgets/track_notes.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/track_notes.lua</source>
+        <source file="ReaSpect/widgets/track_tools.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/widgets/track_tools.lua</source>
+        <source file="ReaSpect/panels/channel.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/panels/channel.lua</source>
+        <source file="ReaSpect/panels/item.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/panels/item.lua</source>
+        <source file="ReaSpect/panels/track.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/panels/track.lua</source>
+        <source file="ReaSpect/inspectors/audio.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/inspectors/audio.lua</source>
+        <source file="ReaSpect/inspectors/midi.lua">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/ReaSpect/inspectors/midi.lua</source>
+        <source file="EULA.md">https://github.com/davvolinni-ui/ReaSpect/raw/f178993636da3973d365509ec7fdb2f940638386/EULA.md</source>
       </version>
     </reapack>
   </category>
