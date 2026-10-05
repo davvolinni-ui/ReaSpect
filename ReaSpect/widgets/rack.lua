@@ -6,7 +6,22 @@ local persistence = require('ReaSpect.core.persistence')
 local prop = require('ReaSpect.widgets.property')
 local native_ui = require('ReaSpect.core.native_ui')
 local fx_search = require('ReaSpect.core.fx_search')
+local slots = require('ReaSpect.core.slots')
 local M = {knob_drags={}}
+function M.respects_slots()
+  if M.respect_slots==nil then
+    M.respect_slots=persistence.get('respect_reaper_slots','0')=='1'
+  end
+  return M.respect_slots
+end
+function M.set_respect_slots(value)
+  M.respect_slots=value
+  persistence.set('respect_reaper_slots',value and '1' or '0')
+end
+local function fx_group_index(source,index,target)
+  if M.respects_slots() then return slots.fx_index(target,slots.fx_slot(source,index)) end
+  return index
+end
 
 local C = {
   bg=0x302A2EFF, header=0x3C3639FF, well=0x3A3336FF,
@@ -32,6 +47,26 @@ local function cut(s, max_chars)
   s=s or ''
   if #s <= max_chars then return s end
   return s:sub(1, math.max(1,max_chars-1)) .. '…'
+end
+local function row_text(ctx,dl,x,y,width,height,ink,text,role)
+  local size=(theme.font_sizes and theme.font_sizes[role or 'body']) or 12
+  local pushed=reaper.ImGui_PushFont and reaper.ImGui_PopFont
+  if pushed then reaper.ImGui_PushFont(ctx,nil,size) end
+  local function measure(value)
+    if reaper.ImGui_CalcTextSize then return reaper.ImGui_CalcTextSize(ctx,value) end
+    return #value*size*0.55,size
+  end
+  local label=text
+  if measure(label)>width then
+    while #label>0 and measure(label..'…')>width do
+      local last=utf8 and utf8.offset and utf8.offset(label,-1) or #label
+      label=label:sub(1,(last or #label)-1)
+    end
+    label=measure('…')<=width and label..'…' or ''
+  end
+  local _,th=measure(label)
+  reaper.ImGui_DrawList_AddText(dl,x,y+(height-(th or size))/2,ink,label)
+  if pushed then reaper.ImGui_PopFont(ctx) end
 end
 local function fx_name(name)
   return ((name or ''):gsub('^[^:]+:%s*',''):gsub('%s*%([^%)]*%)%s*$',''))
@@ -528,7 +563,7 @@ local function resolve_fx_after_modal(track,project,guid)
   end
 end
 
-local function add_fx(track,state,identity,name,index)
+local function add_fx(track,state,identity,name,index,slot)
   if not reaper.TrackFX_AddByName then return false end
   local project=current_project()
   local position=clamp(index or reaper.TrackFX_GetCount(track),0,reaper.TrackFX_GetCount(track))
@@ -539,6 +574,9 @@ local function add_fx(track,state,identity,name,index)
       added=reaper.TrackFX_AddByName(track,name,false,-1000-position)
     end
     if added >= 0 and valid_project_track(track,project) then
+      if slot~=nil and reaper.TrackFX_SetNamedConfigParm then
+        reaper.TrackFX_SetNamedConfigParm(track,added,'slot_hint',tostring(slot))
+      end
       added_index=added;remember_fx(identity)
       state.fx=nil; reaper.UpdateArrange()
     end
@@ -549,6 +587,7 @@ end
 local function replace_fx(track,state,index,identity,name)
   if not reaper.TrackFX_AddByName or not reaper.TrackFX_Delete then return false end
   local project=current_project()
+  local visual_slot=M.respects_slots() and slots.fx_slot(track,index) or nil
   local guid=reaper.TrackFX_GetFXGUID and reaper.TrackFX_GetFXGUID(track,index)
   if not guid or guid=='' then return false end
   local added=false
@@ -562,17 +601,40 @@ local function replace_fx(track,state,index,identity,name)
     if result>=0 and valid_project_track(track,project) then
       -- Loading a plugin can pump a native dialog. Delete only the original
       -- instance if the chain changed while that dialog was open.
-      if old_index then reaper.TrackFX_Delete(track,old_index);added=true end
+      if old_index then
+        local new_guid=reaper.TrackFX_GetFXGUID and reaper.TrackFX_GetFXGUID(track,result)
+        reaper.TrackFX_Delete(track,old_index);added=true
+        local new_index=new_guid and resolve_fx_after_modal(track,project,new_guid)
+        if visual_slot~=nil and new_index and reaper.TrackFX_SetNamedConfigParm then
+          reaper.TrackFX_SetNamedConfigParm(track,new_index,'slot_hint',tostring(visual_slot))
+        end
+      end
       remember_fx(identity);state.fx=nil;reaper.UpdateArrange()
     end
   end)
   return added
 end
 
-local function move_fx(track,state,source,destination)
+local function move_fx(track,state,source,destination,visual_slot)
   if not reaper.TrackFX_CopyToTrack or source==nil or source==destination then return end
   undo.edit('Move track FX',function()
+    local ordered_slots
+    if destination<0x800000 and slots.fx_supported(track) then
+      ordered_slots={}
+      for i=0,reaper.TrackFX_GetCount(track)-1 do ordered_slots[i+1]=slots.fx_slot(track,i) end
+    end
+    local guid=visual_slot~=nil and reaper.TrackFX_GetFXGUID and reaper.TrackFX_GetFXGUID(track,source)
     reaper.TrackFX_CopyToTrack(track,source,track,destination,true)
+    if ordered_slots and reaper.TrackFX_SetNamedConfigParm then
+      -- Slot hints belong to instances and survive chain moves. Reassign the
+      -- existing positions in chain order so the mixer shows the new order.
+      for i,slot in ipairs(ordered_slots) do
+        reaper.TrackFX_SetNamedConfigParm(track,i-1,'slot_hint',tostring(slot))
+      end
+    elseif guid and reaper.TrackFX_SetNamedConfigParm then
+      local resolved=resolve_fx_after_modal(track,current_project(),guid)
+      if resolved then reaper.TrackFX_SetNamedConfigParm(track,resolved,'slot_hint',tostring(visual_slot)) end
+    end
     state.fx=nil; reaper.UpdateArrange()
   end)
 end
@@ -590,7 +652,7 @@ local function track_identity(track)
   return reaper.GetTrackGUID and reaper.GetTrackGUID(track) or tostring(track)
 end
 
-local function fx_drop(ctx,track,state,destination)
+local function fx_drop(ctx,track,state,destination,visual_slot)
   if not (reaper.ImGui_BeginDragDropTarget and reaper.ImGui_BeginDragDropTarget(ctx)) then return end
   drag_scope(ctx,reaper.ImGui_EndDragDropTarget,function()
     local moved,payload=reaper.ImGui_AcceptDragDropPayload(ctx,'REASPECT_FX_MOVE',nil)
@@ -601,7 +663,7 @@ local function fx_drop(ctx,track,state,destination)
     -- captured instance only within its original track at delivery time.
     for source=0,reaper.TrackFX_GetCount(track)-1 do
       if reaper.TrackFX_GetFXGUID(track,source)==guid then
-        move_fx(track,state,source,destination)
+        move_fx(track,state,source,destination,visual_slot)
         return
       end
     end
@@ -615,6 +677,17 @@ local function choose_fx(ctx,track,state,position,replace_index,fx)
     end,replace_index)
   else
     local count=reaper.TrackFX_GetCount(track)
+    if type(position)=='table' then
+      local slot=position.slot
+      native_ui.queue('Add FX',track,function(target)
+        local occupied,insertion=slots.fx_index(target,slot)
+        -- Do not replace an FX added while the picker was open.
+        if occupied~=nil then return end
+        add_fx(target,state,fx.ident,fx.name,insertion or reaper.TrackFX_GetCount(target),slot)
+      end)
+      if reaper.ImGui_CloseCurrentPopup then reaper.ImGui_CloseCurrentPopup(ctx) end
+      return
+    end
     local anchor=position and position>0 and position<=count and position-1 or nil
     native_ui.queue('Add FX',track,function(target,index)
       add_fx(target,state,fx.ident,fx.name,anchor and index+1 or position)
@@ -624,9 +697,11 @@ local function choose_fx(ctx,track,state,position,replace_index,fx)
 end
 
 local function fx_menu_item(ctx,fx,index,label)
+  local format=fx_search.format(fx)
+  if M.fx_formats and M.fx_formats[format]==false then return false end
   -- Different formats and variants can share the same display name.
   local identity=tostring(fx.ident or fx.name or ''):gsub('#','%%23')
-  return menu_item(ctx,(label or fx.display)..'##fx_catalog_'..identity..'_'..index,'',false,true)
+  return menu_item(ctx,(label or fx.display)..'##fx_catalog_'..identity..'_'..index,format,false,true)
 end
 
 local function add_recent_menu(ctx,track,state,position,replace_index,label)
@@ -708,6 +783,21 @@ local function developer_menu(ctx,track,state,position,replace_index)
   end
 end
 
+local function fx_format_filters(ctx,id)
+  M.fx_formats=M.fx_formats or {}
+  local available={}
+  for _,fx in ipairs(installed_fx()) do available[fx_search.format(fx)]=true end
+  local count=0
+  for _,format in ipairs({'VST','VST3','CLAP','AU','JS','DX','LV2','ReWire','Video','Other'}) do
+    if available[format] then
+      if count%3~=0 then reaper.ImGui_SameLine(ctx) end
+      local changed,enabled=reaper.ImGui_Checkbox(ctx,format..'##fx_format_'..id..'_'..format,M.fx_formats[format]~=false)
+      if changed then M.fx_formats[format]=enabled end
+      count=count+1
+    end
+  end
+end
+
 local function fx_search_input(ctx,id,width)
   local value=M.fx_search or ''
   if reaper.ImGui_IsWindowAppearing and reaper.ImGui_IsWindowAppearing(ctx)
@@ -719,7 +809,7 @@ local function fx_search_input(ctx,id,width)
 end
 
 local function matching_fx(query)
-  return fx_search.match(installed_fx(),query)
+  return fx_search.match(installed_fx(),query,M.fx_formats)
 end
 
 local function draw_fx_matches(ctx,track,state,rows,position,replace_index)
@@ -742,6 +832,7 @@ local function fx_catalog_menu(ctx,track,state,position,replace_index,id)
     M.refresh_fx_catalog()
     query=(M.fx_search or ''):lower()
   end
+  fx_format_filters(ctx,id or 'picker')
   menu_separator(ctx)
   if query~='' then
     draw_fx_matches(ctx,track,state,matching_fx(query),position,replace_index)
@@ -775,10 +866,11 @@ end
 
 local function set_fx_slot_group(track,state,index,all_tracks)
   local tracks=matching_tracks(track,all_tracks)
-  local enabled=reaper.TrackFX_GetCount(track)>index and reaper.TrackFX_GetEnabled(track,index) or true
+  local enabled=reaper.TrackFX_GetEnabled(track,index)
   undo.edit('Toggle FX slot bypass',function()
     for _,target in ipairs(tracks) do
-      if target and reaper.TrackFX_GetCount(target)>index then reaper.TrackFX_SetEnabled(target,index,not enabled) end
+      local resolved=target and fx_group_index(track,index,target)
+      if resolved~=nil and reaper.TrackFX_GetCount(target)>resolved then reaper.TrackFX_SetEnabled(target,resolved,not enabled) end
     end
     state.fx=nil;reaper.UpdateArrange()
   end)
@@ -861,15 +953,15 @@ local function finish_fx_toggle_drag(ctx)
   M.fx_toggle_drag=nil
 end
 
-local function fx_slot_menu(ctx,track,state,fx,index,popup)
-  if not (reaper.ImGui_BeginPopup and reaper.ImGui_BeginPopup(ctx,popup,controls.scroll_flags())) then return end
+local function fx_slot_menu(ctx,track,state,fx,index,popup,visual_slot)
+  if not (reaper.ImGui_BeginPopup and reaper.ImGui_BeginPopup(ctx,popup)) then return end
   if not fx then
-    fx_catalog_menu(ctx,track,state,index,nil,'slot_'..index)
-    controls.scroll_end(ctx)
+    fx_catalog_menu(ctx,track,state,visual_slot~=nil and {slot=visual_slot} or index,nil,'slot_'..index)
     reaper.ImGui_EndPopup(ctx)
     return
   end
   local query=fx_search_input(ctx,'slot_'..index)
+  fx_format_filters(ctx,'slot_'..index)
   if query~='' then
     local matches=matching_fx(query)
     if #matches==0 then
@@ -884,20 +976,10 @@ local function fx_slot_menu(ctx,track,state,fx,index,popup)
         menu_end(ctx)
       end
     end
-    controls.scroll_end(ctx)
     reaper.ImGui_EndPopup(ctx)
     return
   end
   if fx then
-    local wet_param=reaper.TrackFX_GetParamFromIdent and reaper.TrackFX_GetParamFromIdent(track,index,':wet') or -1
-    if wet_param>=0 and reaper.TrackFX_GetParamNormalized and reaper.TrackFX_SetParamNormalized then
-      prop.set_scope(ctx,'fx:'..tostring(track)..':'..index)
-      local wet=reaper.TrackFX_GetParamNormalized(track,index,wet_param)*100
-      prop.number(ctx,'Wet / dry','##fx_wet',wet,function(value)
-        undo.edit('Set FX wet/dry',function() reaper.TrackFX_SetParamNormalized(track,index,wet_param,value/100) end)
-      end,'%.1f %%',{step=1,min=0,max=100,default=100})
-      menu_separator(ctx)
-    end
     if menu_begin(ctx,'Add FX…',true) then
       fx_catalog_menu(ctx,track,state,index+1,nil,'add_after_'..index)
       menu_end(ctx)
@@ -966,7 +1048,6 @@ local function fx_slot_menu(ctx,track,state,fx,index,popup)
     if menu_item(ctx,'Bypass FX slot for selected tracks','Alt+Shift+Click',false,true) then set_fx_slot_group(track,state,index,false) end
     if menu_item(ctx,'Bypass FX slot for all tracks','Alt+Ctrl+Shift+Click',false,true) then set_fx_slot_group(track,state,index,true) end
   end
-  controls.scroll_end(ctx)
   reaper.ImGui_EndPopup(ctx)
 end
 
@@ -977,7 +1058,7 @@ local function fx_row_surface(dl,x,y,width,label_width)
   reaper.ImGui_DrawList_AddLine(dl,x+label_width,y+4,x+label_width,y+FX_ROW_HEIGHT-4,0x211F20AA,1)
 end
 
-local function fx_row(ctx,track,state,fx,index)
+local function fx_row(ctx,track,state,fx,index,visual_slot)
   local avail=reaper.ImGui_GetContentRegionAvail(ctx) or 120
   local body=math.max(32,avail)
   local toggle_width=FX_TOGGLE_WIDTH
@@ -987,7 +1068,7 @@ local function fx_row(ctx,track,state,fx,index)
   fx_row_surface(dl,x,y,body,label_width)
   if fx then
     local name=fx_name(fx.name)
-    reaper.ImGui_DrawList_AddText(dl,x+7,y+4,(fx.enabled and not fx.offline) and C.text or C.muted,cut((fx.offline and '[off] ' or '')..name,math.max(2,math.floor((label_width-12)/7))))
+    row_text(ctx,dl,x+7,y,math.max(0,label_width-12),FX_ROW_HEIGHT,(fx.enabled and not fx.offline) and C.text or C.muted,(fx.offline and '[off] ' or '')..name)
   end
   local hit=reaper.ImGui_InvisibleButton(ctx,'##fxrow'..index,label_width,FX_ROW_HEIGHT)
   local right_click=reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1)
@@ -1006,8 +1087,9 @@ local function fx_row(ctx,track,state,fx,index)
       if alt and shift and reaper.TrackFX_SetEnabled then
         undo.edit('Toggle FX slot bypass',function()
           for _,target in ipairs(matching_tracks(track,ctrl)) do
-            if target and reaper.TrackFX_GetCount(target)>fx.index then
-              reaper.TrackFX_SetEnabled(target,fx.index,not reaper.TrackFX_GetEnabled(target,fx.index))
+            local resolved=target and fx_group_index(track,fx.index,target)
+            if resolved~=nil and reaper.TrackFX_GetCount(target)>resolved then
+              reaper.TrackFX_SetEnabled(target,resolved,not reaper.TrackFX_GetEnabled(target,resolved))
             end
           end
           state.fx=nil;reaper.UpdateArrange()
@@ -1041,7 +1123,8 @@ local function fx_row(ctx,track,state,fx,index)
       reaper.ImGui_Text(ctx,fx_name(fx.name))
     end)
   end
-  fx_drop(ctx,track,state,index)
+  local destination=visual_slot~=nil and not fx and (0x800000|visual_slot) or index
+  fx_drop(ctx,track,state,destination,visual_slot)
   reaper.ImGui_SameLine(ctx,0,0)
   local toggle_hit,toggle_hover=fx_toggle_button(ctx,track,state,fx,index,toggle_width)
   local toggle_right=reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1)
@@ -1049,8 +1132,8 @@ local function fx_row(ctx,track,state,fx,index)
     if not fx then M.fx_search='' end
     reaper.ImGui_OpenPopup(ctx,popup)
   end
-  if toggle_hover then fx_drop(ctx,track,state,index) end
-  fx_slot_menu(ctx,track,state,fx,index,popup)
+  if toggle_hover then fx_drop(ctx,track,state,destination,visual_slot) end
+  fx_slot_menu(ctx,track,state,fx,index,popup,visual_slot)
 end
 
 local function small_knob(ctx,id,value,minv,maxv,tint,reset,feedback)
@@ -1121,7 +1204,7 @@ local function route_details(ctx,track,state,send,popup,label)
   prop.number(ctx,'Level','##route_level',db(get('D_VOL')),function(v) set('D_VOL',lin(v),'Set '..kind..' level') end,
     '%.1f dB',{step=0.5,min=-60,max=12,default=0})
   prop.number(ctx,'Pan','##route_pan',get('D_PAN')*100,function(v) set('D_PAN',v/100,'Set '..kind..' pan') end,
-    '%+.0f %%',{step=1,min=-100,max=100,default=0})
+    '%+.0f %%',{step=1,drag_step=1,min=-100,max=100,default=0})
   local mode=math.floor(get('I_SENDMODE'))
   -- Legacy mode 2 is equivalent to post-FX; never present it as an unknown.
   if mode==2 then mode=3 end
@@ -1148,7 +1231,7 @@ local function route_details(ctx,track,state,send,popup,label)
   reaper.ImGui_EndPopup(ctx)
 end
 
-local function send_row(ctx,track,state,send)
+local function send_row(ctx,track,state,send,visual_slot)
   local category=send.category or 0
   local kind=category==-1 and 'receive' or 'send'
   local row_id=tostring(track)..'_'..category..'_'..send.index
@@ -1167,7 +1250,7 @@ local function send_row(ctx,track,state,send)
   reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+avail,y+25,send.mute and 0x302D30FF or C.well,5)
   reaper.ImGui_DrawList_AddLine(dl,x+4,y+1,x+avail-4,y+1,0xBEB4AF24,1)
   local title_w=math.max(20,avail-30)
-  reaper.ImGui_DrawList_AddText(dl,x+6,y+5,send.mute and C.muted or C.gold,cut(label,math.max(2,math.floor((title_w-10)/7))))
+  row_text(ctx,dl,x+6,y,math.max(0,title_w-10),25,send.mute and C.muted or C.gold,label)
   local send_hit=reaper.ImGui_InvisibleButton(ctx,'##sendlabel'..row_id,title_w,25)
   local send_right=reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1)
   if send_hit then
@@ -1177,9 +1260,16 @@ local function send_row(ctx,track,state,send)
     elseif alt and shift then
       undo.edit('Toggle send slot mute',function()
         for _,target in ipairs(matching_tracks(track,ctrl)) do
-          if target and reaper.GetTrackNumSends(target,category)>send.index then
-            local old=reaper.GetTrackSendInfo_Value(target,category,send.index,'B_MUTE') or 0
-            reaper.SetTrackSendInfo_Value(target,category,send.index,'B_MUTE',old<=0 and 1 or 0)
+          local index=send.index
+          if target and category==0 and visual_slot~=nil then
+            index=nil
+            for _,row in ipairs(slots.send_rows(target,api.sends(target))) do
+              if row.slot==visual_slot and row.item then index=row.item.index;break end
+            end
+          end
+          if target and index~=nil and reaper.GetTrackNumSends(target,category)>index then
+            local old=reaper.GetTrackSendInfo_Value(target,category,index,'B_MUTE') or 0
+            reaper.SetTrackSendInfo_Value(target,category,index,'B_MUTE',old<=0 and 1 or 0)
           end
         end
         state.sends,state.receives=nil,nil;reaper.UpdateArrange()
@@ -1252,11 +1342,16 @@ local function fx_header(ctx,track,state,compact,available_width)
   fx_row_surface(dl,x,y,combined,body)
   if body_hover then reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+combined,y+FX_ROW_HEIGHT,0xFFFFFF12,5) end
   if bypass_hover then reaper.ImGui_DrawList_AddRectFilled(dl,x+body+1,y+1,x+combined-1,y+FX_ROW_HEIGHT-1,0xFFFFFF12,3) end
-  reaper.ImGui_DrawList_AddText(dl,x+7,y+4,text_col,'FX')
+  row_text(ctx,dl,x+7,y,math.max(0,body-12),FX_ROW_HEIGHT,text_col,'FX','heading')
   local marker_x=x+body+math.floor(FX_TOGGLE_WIDTH/2)
   reaper.ImGui_DrawList_AddRectFilled(dl,marker_x-2,y+5,marker_x+2,y+18,line,2)
   if open_hit and count>0 then show_fx_chain_at(track,0) end
   if reaper.ImGui_BeginPopup and reaper.ImGui_BeginPopup(ctx,'##fx_header_menu') then
+    local changed,value=reaper.ImGui_Checkbox(ctx,'Respect REAPER slot positions',M.respects_slots())
+    if changed then
+      M.set_respect_slots(value)
+    end
+    if reaper.ImGui_Separator then reaper.ImGui_Separator(ctx) end
     fx_catalog_menu(ctx,track,state,count)
     reaper.ImGui_EndPopup(ctx)
   end
@@ -1274,13 +1369,14 @@ local function send_popup_id(track)
   return '##send_target_'..tostring(track)
 end
 
-local function open_send_picker(ctx,track)
+local function open_send_picker(ctx,track,slot)
   M.send_search=''
+  M.send_picker_slot=slot
   if reaper.ImGui_OpenPopup then reaper.ImGui_OpenPopup(ctx,send_popup_id(track)) end
 end
 
 local function queue_send_creation(source,destination,state)
-  M.pending_send_creation={source=source,destination=destination,state=state}
+  M.pending_send_creation={source=source,destination=destination,state=state,slot=M.send_picker_slot}
 end
 
 function M.process_pending_actions()
@@ -1293,8 +1389,17 @@ function M.process_pending_actions()
     if not reaper.ValidatePtr2(0,pending.source,'MediaTrack*')
         or not reaper.ValidatePtr2(0,pending.destination,'MediaTrack*') then return end
   end
+  if pending.slot~=nil then
+    for _,row in ipairs(slots.send_rows(pending.source,api.sends(pending.source))) do
+      if row.slot==pending.slot and (row.item or row.reserved) then return end
+    end
+  end
   undo.edit('Create track send',function()
-    if api.create_send(pending.source,pending.destination)>=0 then
+    local index=api.create_send(pending.source,pending.destination)
+    if index>=0 then
+      if pending.slot~=nil and slots.send_slots_supported(pending.source) then
+        reaper.SetTrackSendInfo_Value(pending.source,0,index,'I_SLOT_HINT',pending.slot)
+      end
       pending.state.sends=nil
       -- The project change count invalidates the cached send list next frame;
       -- no arrange or track-window refresh is needed here.
@@ -1315,7 +1420,7 @@ local function send_header(ctx,track,available_width)
   reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+body,y+24,C.shadow,4)
   reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+body,y+22,0x2D3236FF,4)
   if route_hover then reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+body,y+22,0x566069AA,4) end
-  reaper.ImGui_DrawList_AddText(dl,x+8,y+5,C.heading or C.violet,'SENDS')
+  row_text(ctx,dl,x+8,y,math.max(0,body-12),22,C.heading or C.violet,'SENDS','heading')
   if route_hit then api.show_routing(track) end
   if route_right then api.show_native_track_menu('track_routing',track) end
 
@@ -1332,7 +1437,7 @@ local function send_header(ctx,track,available_width)
   if add_hit then open_send_picker(ctx,track) end
 end
 
-local function send_empty_row(ctx,track,slot)
+local function send_empty_row(ctx,track,slot,reserved)
   local avail=math.max(1,reaper.ImGui_GetContentRegionAvail(ctx) or 120)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
@@ -1345,12 +1450,16 @@ local function send_empty_row(ctx,track,slot)
   if initial_add then
     reaper.ImGui_DrawList_AddLine(dl,x+13,y+12.5,x+21,y+12.5,C.violet,1.7)
     reaper.ImGui_DrawList_AddLine(dl,x+17,y+8.5,x+17,y+16.5,C.violet,1.7)
-    reaper.ImGui_DrawList_AddText(dl,x+29,y+6,C.text,'Add send…')
+    row_text(ctx,dl,x+29,y,math.max(0,avail-33),25,C.text,'Add send…')
   end
   tooltip(ctx,initial_add and 'Click to choose a destination' or 'Click to add a send')
   -- This row lives in a nested child, while the popup is drawn in the Sends
   -- parent. Defer opening until the parent scope resumes so popup IDs match.
-  if hit then M.pending_send_picker=track end
+  if reserved then tooltip(ctx,'Hardware output slot; open REAPER routing to edit') end
+  if hit and not reserved then
+    M.pending_send_picker=track
+    M.pending_send_slot=M.respects_slots() and slot-1 or nil
+  end
 end
 
 local function send_target_picker(ctx,source,state,sends)
@@ -1478,7 +1587,10 @@ function M.draw(ctx,track,state,height)
   sync_theme()
   local h=math.max(1,height or 350)
   local fx,sends,receives=state.get_fx(),state.get_sends(),state.get_receives()
-  local fx_h,send_h,usable,minimum=rack_heights(ctx,h,fx,sends,receives)
+  local respect=M.respects_slots()
+  local fx_rows=respect and slots.fx_supported(track) and slots.fx_rows(track,fx) or nil
+  local send_rows=respect and slots.send_rows(track,sends) or nil
+  local fx_h,send_h,usable,minimum=rack_heights(ctx,h,fx_rows or fx,send_rows or sends,receives)
   -- A permanent, narrow gutter keeps header and row widths identical before
   -- and after overflow. The native thumb remains draggable; wheel ownership
   -- stays with controls through the shared manual scrolling helpers.
@@ -1497,8 +1609,16 @@ function M.draw(ctx,track,state,height)
     local width=reaper.ImGui_GetContentRegionAvail(ctx)
     fx_header(ctx,track,state,false,width-gutter)
     rows('##insertrows',width,function()
-      for _,item in ipairs(fx) do fx_row(ctx,track,state,item,item.index) end
-      for i=#fx,math.max(4,#fx) do fx_row(ctx,track,state,nil,i) end
+      if fx_rows then
+        for _,row in ipairs(fx_rows) do
+          -- Give gaps distinct IDs, separate from every real chain index.
+          fx_row(ctx,track,state,row.item,row.item and row.item.index or (0x800000|row.slot),row.slot)
+        end
+        for i=#fx_rows,math.max(4,#fx_rows) do fx_row(ctx,track,state,nil,0x800000|i,i) end
+      else
+        for _,item in ipairs(fx) do fx_row(ctx,track,state,item,item.index) end
+        for i=#fx,math.max(4,#fx) do fx_row(ctx,track,state,nil,i) end
+      end
       local zone_w,zone_h=reaper.ImGui_GetContentRegionAvail(ctx)
       if zone_h and zone_h>6 then
         reaper.ImGui_InvisibleButton(ctx,'##fx_empty_drop_zone',math.max(1,zone_w or 1),zone_h-2)
@@ -1512,10 +1632,18 @@ function M.draw(ctx,track,state,height)
     local width=reaper.ImGui_GetContentRegionAvail(ctx)
     send_header(ctx,track,width-gutter)
     rows('##sendrows',width,function()
-      for _,send in ipairs(sends) do send_row(ctx,track,state,send) end
+      if respect then
+        for _,row in ipairs(send_rows) do
+          if row.item then send_row(ctx,track,state,row.item,row.slot)
+          else send_empty_row(ctx,track,row.slot+1,row.reserved) end
+        end
+      else
+        for _,send in ipairs(sends) do send_row(ctx,track,state,send) end
+      end
       -- Keep several destination slots ready, with one empty slot after any
       -- longer send list so adding another route never requires a menu hunt.
-      for slot=#sends+1,math.max(#receives>0 and 1 or MIN_SEND_SLOTS,#sends+1) do
+      local occupied=respect and #send_rows or #sends
+      for slot=occupied+1,math.max(#receives>0 and 1 or MIN_SEND_SLOTS,occupied+1) do
         send_empty_row(ctx,track,slot)
       end
       if #receives>0 then
@@ -1526,7 +1654,8 @@ function M.draw(ctx,track,state,height)
     end)
     if M.pending_send_picker==track then
       M.pending_send_picker=nil
-      open_send_picker(ctx,track)
+      open_send_picker(ctx,track,M.pending_send_slot)
+      M.pending_send_slot=nil
     end
     send_target_picker(ctx,track,state,sends)
   end,fixed_section)

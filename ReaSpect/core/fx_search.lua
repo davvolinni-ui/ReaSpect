@@ -1,6 +1,25 @@
 local M={}
 local prepared=setmetatable({},{__mode='k'})
 
+-- Instrument suffixes describe the plugin's role, not a separate format.
+function M.format(fx)
+  local prefix=(fx.name or fx.display or ''):match('^%s*([%w]+):')
+  prefix=prefix and prefix:upper() or ''
+  local formats={VST='VST',VSTI='VST',VST3='VST3',VST3I='VST3',
+    CLAP='CLAP',CLAPI='CLAP',AU='AU',AUI='AU',JS='JS',DX='DX',DXI='DX',
+    LV2='LV2',LV2I='LV2',REWIRE='ReWire',VIDEO='Video'}
+  return formats[prefix] or 'Other'
+end
+
+function M.filter(rows,formats)
+  if not formats then return rows end
+  local result={}
+  for _,fx in ipairs(rows) do
+    if formats[M.format(fx)]~=false then result[#result+1]=fx end
+  end
+  return result
+end
+
 local function normalize(value)
   return (tostring(value or ''):gsub('(%l)(%u)','%1 %2'):lower():gsub('(%a)(%d)','%1 %2'):gsub('(%d)(%a)','%1 %2')
     :gsub('[^%w%s]',' '):gsub('%s+',' '):match('^%s*(.-)%s*$'))
@@ -12,7 +31,8 @@ local function tokens(text)
   return out
 end
 
-function M.match(rows,query)
+function M.match(rows,query,formats)
+  rows=M.filter(rows,formats)
   local needle=normalize(query)
   if needle=='' then return rows end
   local terms=tokens(needle)

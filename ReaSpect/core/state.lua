@@ -41,6 +41,7 @@ M.sections = {
   item_audio_subset=persist.get_bool('section_item_audio_subset', true), item_midi_subset=persist.get_bool('section_item_midi_subset', true),
   track_advanced=persist.get_bool('section_track_advanced', false),
   track_tools=persist.get_bool('section_track_tools', false),
+  track_notes=persist.get_bool('section_track_notes', false),
   track_fx_parameters=persist.get_bool('section_track_fx_parameters', false),
   -- A nil preference lets the Recording section follow the track's context
   -- until the user chooses to expand or collapse it.

@@ -9,10 +9,18 @@ local theme = require('ReaSpect.core.theme')
 local pan = require('ReaSpect.core.pan')
 local input_selector = require('ReaSpect.widgets.input_selector')
 local M = {knob_drags={}}
+local CIRCLE_SEGMENTS=48
+local STRIP_SCALE=0.75
+local CONTROL_SCALE=0.9
+local STRIP_WIDTH=78
+local STRIP_FONT_SIZE=(theme.font_sizes and theme.font_sizes.body) or 12
+local READOUT_FONT_SIZE=(theme.font_sizes and theme.font_sizes.readout) or 11
+local STRIP_STACK_SPACING=2
+local function compact_px(value,compact) return compact and value*CONTROL_SCALE or value end
 local function seconds() return reaper.time_precise and reaper.time_precise() or os.clock() end
 
 local function db(v) if not v or v <= 0.000001 then return -math.huge end return 20 * math.log(v, 10) end
-local function fader_db(v) local d = db(v); return d == -math.huge and -60 or d end
+local function fader_db(v) local d = db(v); return d == -math.huge and select(1,fader.range()) or d end
 local function db_text(v) local d = db(v); return d == -math.huge and '-inf' or string.format('%+.2f dB', d) end
 local function lin(v) return 10 ^ (v / 20) end
 local function each(state, fn)
@@ -23,7 +31,7 @@ end
 local function edit(state, label, setter, value)
   undo.edit(label, function()
     each(state, function(t) setter(t, value) end)
-    reaper.TrackList_AdjustWindows(false); reaper.UpdateArrange()
+    reaper.UpdateArrange()
   end)
 end
 local function pan_label(v)
@@ -39,23 +47,23 @@ end
 
 local function small_button(ctx, label, active, on, w, compact, on_set)
   local kind=label:match('^([^#]+)')
-  local width,height=w or (compact and 24 or 30),compact and 23 or 25
+  local width,height=compact_px(w or (compact and 24 or 30),compact),compact_px(compact and 23 or 25,compact)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local hit=reaper.ImGui_InvisibleButton(ctx,label,width,height)
   local hovered=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
   local held=reaper.ImGui_IsItemActive and reaper.ImGui_IsItemActive(ctx)
   local active_color=kind=='M' and 0xA54D5BFF or (kind=='S' and 0xB89B55FF or 0x666B6CFF)
   local fill=active and active_color or (held and 0x686B6EFF or (hovered and 0x55585BFF or 0x3D4043FF))
+  if theme.is_light and not active then fill=held and 0xA8ADB4FF or (hovered and 0xBEC3CAFF or theme.colors.frame) end
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+width,y+height+1,0x141719AA,3)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+width-1,y+height-1,fill,3)
-  reaper.ImGui_DrawList_AddLine(dl,x+2,y+1,x+width-3,y+1,0xB1B4B459,1)
-  reaper.ImGui_DrawList_AddLine(dl,x+2,y+height-2,x+width-3,y+height-2,0x11131588,1)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+1,x+width-1,y+height-1,(theme.is_light and theme.colors.border or 0x191B1DFF),2)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x+2,y+2,x+width-2,y+height-2,fill,1)
+  reaper.ImGui_DrawList_AddLine(dl,x+3,y+2,x+width-3,y+2,0xB1B4B430,1)
   local large=reaper.ImGui_PushFont and reaper.ImGui_PopFont
-  if large then reaper.ImGui_PushFont(ctx,nil,compact and 16 or 18) end
+  if large then reaper.ImGui_PushFont(ctx,nil,compact and ((theme.font_sizes and theme.font_sizes.button) or 14) or 18) end
   local tw,th=reaper.ImGui_CalcTextSize(ctx,kind)
   local tx,ty=x+(width-tw)/2,y+(height-th)/2-1
-  reaper.ImGui_DrawList_AddText(dl,tx,ty,0xE8E9E9FF,kind)
+  reaper.ImGui_DrawList_AddText(dl,tx,ty,(theme.is_light and not active and theme.colors.text or 0xE8E9E9FF),kind)
   if large then reaper.ImGui_PopFont(ctx) end
   if reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_SetTooltip then
     local tip = label:match('^([^#]+)') or label
@@ -87,7 +95,7 @@ end
 local function control_edit(ctx,state,source,label,setter,value)
   undo.edit(label,function()
     control_each(state,source,ctx,function(t) setter(t,value) end)
-    reaper.TrackList_AdjustWindows(false); reaper.UpdateArrange()
+    reaper.UpdateArrange()
   end)
 end
 
@@ -112,7 +120,7 @@ local function set_mute_group(state,source,ctrl,alt,shift)
   if ctrl and not alt then
     undo.edit('Unmute all tracks',function()
       for _,t in ipairs(all_project_tracks(true)) do reaper.SetMediaTrackInfo_Value(t,'B_MUTE',0) end
-      reaper.TrackList_AdjustWindows(false); reaper.UpdateArrange()
+      reaper.UpdateArrange()
     end)
   elseif alt then
     local exclusive=ctrl
@@ -122,13 +130,13 @@ local function set_mute_group(state,source,ctrl,alt,shift)
         if is_group[t] then mute=exclusive else mute=true end
         reaper.SetMediaTrackInfo_Value(t,'B_MUTE',mute and 1 or 0)
       end
-      reaper.TrackList_AdjustWindows(false); reaper.UpdateArrange()
+      reaper.UpdateArrange()
     end)
   else
     local value=not api.track.mute(source)
     undo.edit('Toggle mute',function()
       for _,t in ipairs(group) do api.track.set_mute(t,value) end
-      reaper.TrackList_AdjustWindows(false); reaper.UpdateArrange()
+      reaper.UpdateArrange()
     end)
   end
 end
@@ -140,7 +148,7 @@ local function set_solo_group(state,source,ctrl,alt,shift)
     local value=(reaper.GetMediaTrackInfo_Value(source,'B_SOLO_DEFEAT') or 0)<=0
     undo.edit('Toggle solo defeat',function()
       for _,t in ipairs(group) do reaper.SetMediaTrackInfo_Value(t,'B_SOLO_DEFEAT',value and 1 or 0) end
-      reaper.TrackList_AdjustWindows(false); reaper.UpdateArrange()
+      reaper.UpdateArrange()
     end)
   elseif ctrl and alt then
     undo.edit('Exclusive solo',function()
@@ -151,13 +159,13 @@ local function set_solo_group(state,source,ctrl,alt,shift)
           if reaper.SetTrackUISolo then reaper.SetTrackUISolo(t,0,0) else reaper.SetMediaTrackInfo_Value(t,'I_SOLO',0) end
         end
       end
-      reaper.TrackList_AdjustWindows(false); reaper.UpdateArrange()
+      reaper.UpdateArrange()
     end)
   elseif ctrl then
     undo.edit('Unsolo all tracks',function()
       if reaper.SoloAllTracks then reaper.SoloAllTracks(0)
       else for _,t in ipairs(all_project_tracks(false)) do reaper.SetMediaTrackInfo_Value(t,'I_SOLO',0) end end
-      reaper.TrackList_AdjustWindows(false); reaper.UpdateArrange()
+      reaper.UpdateArrange()
     end)
   elseif alt then
     local mode=reaper.GetMediaTrackInfo_Value(source,'I_SOLO') or 0
@@ -167,19 +175,20 @@ local function set_solo_group(state,source,ctrl,alt,shift)
         if reaper.SetTrackUISolo then reaper.SetTrackUISolo(t,next_mode,0)
         else reaper.SetMediaTrackInfo_Value(t,'I_SOLO',next_mode) end
       end
-      reaper.TrackList_AdjustWindows(false); reaper.UpdateArrange()
+      reaper.UpdateArrange()
     end)
   else
     local value=not api.track.solo(source)
     undo.edit('Toggle solo',function()
       for _,t in ipairs(group) do api.track.set_solo(t,value) end
-      reaper.TrackList_AdjustWindows(false); reaper.UpdateArrange()
+      reaper.UpdateArrange()
     end)
   end
 end
 
 local function automation_button(ctx, mode, on_click, compact, on_change)
-  local w,h=compact and 24 or 30,compact and 20 or 24
+  local u=compact_px(1,compact)
+  local w,h=compact_px(compact and 24 or 30,compact),compact_px(compact and 20 or 24,compact)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
   local hit=reaper.ImGui_InvisibleButton(ctx,'##automation',w,h)
@@ -191,13 +200,13 @@ local function automation_button(ctx, mode, on_click, compact, on_change)
     if bright and reaper.ImGui_DrawList_AddRectFilled then
       reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+1,x+w-1,y+h-1,0x555A5CFF,4)
     end
-    local left,right=x+5,x+w-5
-    local low,high=y+h-6,y+6
-    reaper.ImGui_DrawList_AddLine(dl,left,low,left+5,low,ink,1.8)
-    reaper.ImGui_DrawList_AddLine(dl,left+5,low,right-5,high,ink,1.8)
-    reaper.ImGui_DrawList_AddLine(dl,right-5,high,right,high,ink,1.8)
-    reaper.ImGui_DrawList_AddCircleFilled(dl,left+5,low,2.5,ink)
-    reaper.ImGui_DrawList_AddCircleFilled(dl,right-5,high,2.5,ink)
+    local left,right=x+5*u,x+w-5*u
+    local low,high=y+h-6*u,y+6*u
+    reaper.ImGui_DrawList_AddLine(dl,left,low,left+5*u,low,ink,1.8*u)
+    reaper.ImGui_DrawList_AddLine(dl,left+5*u,low,right-5*u,high,ink,1.8*u)
+    reaper.ImGui_DrawList_AddLine(dl,right-5*u,high,right,high,ink,1.8*u)
+    reaper.ImGui_DrawList_AddCircleFilled(dl,left+5*u,low,2.5*u,ink)
+    reaper.ImGui_DrawList_AddCircleFilled(dl,right-5*u,high,2.5*u,ink)
   end
   if hit then
     M.automation_flash_until=seconds()+0.45
@@ -211,21 +220,22 @@ local function automation_button(ctx, mode, on_click, compact, on_change)
 end
 
 local function phase_button(ctx, active, on_click, compact)
-  local w,h=compact and 24 or 30,compact and 20 or 24
+  local u=compact_px(1,compact)
+  local w,h=compact_px(compact and 24 or 30,compact),compact_px(compact and 20 or 24,compact)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
   local col=active and 0xF5B35AFF or 0xB9BDC0FF
   if dl and reaper.ImGui_DrawList_AddCircle then
     local cx,cy=x+w/2,y+h/2
-    reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,compact and 9 or 11,0x303337FF)
-    reaper.ImGui_DrawList_AddCircle(dl,cx,cy,compact and 6 or 8,col,0,2)
-    reaper.ImGui_DrawList_AddLine(dl,cx-6,cy+6,cx+6,cy-6,col,2)
+    reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,(compact and 9 or 11)*u,(theme.is_light and theme.colors.frame or 0x303337FF),CIRCLE_SEGMENTS)
+    reaper.ImGui_DrawList_AddCircle(dl,cx,cy,(compact and 6 or 8)*u,col,CIRCLE_SEGMENTS,2*u)
+    reaper.ImGui_DrawList_AddLine(dl,cx-6*u,cy+6*u,cx+6*u,cy-6*u,col,2*u)
   end
   if reaper.ImGui_InvisibleButton(ctx,'##phase',w,h) then on_click(not active) end
   local changed,out=controls.toggle(ctx,active,false)
   if changed then on_click(out) end
   if reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_SetTooltip then
-    reaper.ImGui_SetTooltip(ctx,active and 'Polarity inverted' or 'Invert polarity')
+    reaper.ImGui_SetTooltip(ctx,(active and 'Polarity inverted' or 'Invert polarity')..'\nWheel: enable/disable  •  Right-click: normal polarity')
   end
 end
 
@@ -234,7 +244,7 @@ local function draw_arc(dl, cx, cy, radius, a1, a2, col, thickness)
   local arc, stroke = reaper.ImGui_DrawList_PathArcTo, reaper.ImGui_DrawList_PathStroke
   if arc and stroke and reaper.ImGui_DrawList_PathClear and reaper.ImGui_DrawFlags_None then
     reaper.ImGui_DrawList_PathClear(dl)
-    arc(dl, cx, cy, radius, a1, a2, math.max(12, math.ceil((a2-a1)*radius/2)))
+    arc(dl, cx, cy, radius, a1, a2, math.max(24, math.ceil((a2-a1)*radius)))
     stroke(dl, col, reaper.ImGui_DrawFlags_None(), thickness or 2)
     reaper.ImGui_DrawList_PathClear(dl)
     return
@@ -255,13 +265,14 @@ local function draw_arc(dl, cx, cy, radius, a1, a2, col, thickness)
 end
 
 local function knob(ctx, id, value, minv, maxv, ring, reset, tooltip, feedback, compact)
-  local w, h = compact and 36 or 50, compact and 36 or 38
+  local u=compact_px(1,compact)
+  local w,h=compact_px(compact and 36 or 50,compact),compact_px(compact and 30 or 38,compact)
   if not reaper.ImGui_InvisibleButton then
     local changed, out = reaper.ImGui_SliderDouble(ctx, id, value, minv, maxv, '%.2f')
     return changed, out, false
   end
   local x, y = reaper.ImGui_GetCursorScreenPos(ctx); local dl = reaper.ImGui_GetWindowDrawList(ctx)
-  local cx,cy=x+w/2,y+(compact and 18 or 17)
+  local cx,cy=x+w/2,y+(compact and 16 or 17)*u
   reaper.ImGui_InvisibleButton(ctx, id, w, h)
   local changed, out = false, value
   local active=reaper.ImGui_IsItemActive and reaper.ImGui_IsItemActive(ctx)
@@ -321,22 +332,23 @@ local function knob(ctx, id, value, minv, maxv, ring, reset, tooltip, feedback, 
   local angle=pan_a1+(pan_a2-pan_a1)*norm
   local feedback_ring=(feedback=='width' and out<0) and theme.accent_color or (ring or 0xE8E9E4FF)
   if dl and reaper.ImGui_DrawList_AddCircleFilled then
-    local face=compact and 8.2 or 10.2
-    local track_radius=compact and 14 or 16
-    local halo_radius=track_radius-2.5
+    local face=(compact and 7.2 or 9.2)*u
+    local track_radius=(compact and 12.5 or 15)*u
+    local halo_radius=track_radius-2.5*u
     local halo_border=0x1C2022FF
-    local halo_border_width=5.2
-    local halo_width=4.0
-    reaper.ImGui_DrawList_AddCircleFilled(dl,cx+0.5,cy+1,track_radius+1,0x101315FF)
-    reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,track_radius,0x303639FF)
+    local halo_border_width=3.8*u
+    local halo_width=3.0*u
+    -- Explicit tessellation keeps the small rims circular at high UI scales.
+    reaper.ImGui_DrawList_AddCircleFilled(dl,cx+0.5*u,cy+u,track_radius+0.5*u,0x10131588,CIRCLE_SEGMENTS)
+    reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,track_radius,0x303639FF,CIRCLE_SEGMENTS)
 
     local function halo(from,to,col)
       draw_arc(dl,cx,cy,halo_radius,from,to,halo_border,halo_border_width)
-      reaper.ImGui_DrawList_AddCircleFilled(dl,cx+math.cos(from)*halo_radius,cy+math.sin(from)*halo_radius,halo_border_width/2,halo_border)
-      reaper.ImGui_DrawList_AddCircleFilled(dl,cx+math.cos(to)*halo_radius,cy+math.sin(to)*halo_radius,halo_border_width/2,halo_border)
+      reaper.ImGui_DrawList_AddCircleFilled(dl,cx+math.cos(from)*halo_radius,cy+math.sin(from)*halo_radius,halo_border_width/2,halo_border,24)
+      reaper.ImGui_DrawList_AddCircleFilled(dl,cx+math.cos(to)*halo_radius,cy+math.sin(to)*halo_radius,halo_border_width/2,halo_border,24)
       draw_arc(dl,cx,cy,halo_radius,from,to,col,halo_width)
-      reaper.ImGui_DrawList_AddCircleFilled(dl,cx+math.cos(from)*halo_radius,cy+math.sin(from)*halo_radius,halo_width/2,col)
-      reaper.ImGui_DrawList_AddCircleFilled(dl,cx+math.cos(to)*halo_radius,cy+math.sin(to)*halo_radius,halo_width/2,col)
+      reaper.ImGui_DrawList_AddCircleFilled(dl,cx+math.cos(from)*halo_radius,cy+math.sin(from)*halo_radius,halo_width/2,col,24)
+      reaper.ImGui_DrawList_AddCircleFilled(dl,cx+math.cos(to)*halo_radius,cy+math.sin(to)*halo_radius,halo_width/2,col,24)
     end
 
     if feedback=='width' then
@@ -354,11 +366,11 @@ local function knob(ctx, id, value, minv, maxv, ring, reset, tooltip, feedback, 
       halo(from,to,feedback_ring)
     end
     -- Light-gray rotating cap, separated from the halo by a dark outline.
-    reaper.ImGui_DrawList_AddCircleFilled(dl,cx+0.3,cy+0.6,face+1,0x1A1D1FFF)
-    reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,face,0x252A2DFF)
-    reaper.ImGui_DrawList_AddCircleFilled(dl,cx-0.4,cy-0.5,face-1.3,0xA2A8AAFF)
-    reaper.ImGui_DrawList_AddCircleFilled(dl,cx-0.8,cy-1.2,face-3.2,0xBCC1C2FF)
-    if reaper.ImGui_DrawList_AddCircle then reaper.ImGui_DrawList_AddCircle(dl,cx,cy,face,0x171A1CFF,0,1) end
+    reaper.ImGui_DrawList_AddCircleFilled(dl,cx+0.3*u,cy+0.6*u,face+u,0x1A1D1FFF,CIRCLE_SEGMENTS)
+    reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,face,0x252A2DFF,CIRCLE_SEGMENTS)
+    reaper.ImGui_DrawList_AddCircleFilled(dl,cx-0.4*u,cy-0.5*u,face-1.3*u,0xA2A8AAFF,CIRCLE_SEGMENTS)
+    reaper.ImGui_DrawList_AddCircleFilled(dl,cx-0.8*u,cy-1.2*u,face-3.2*u,0xBCC1C2FF,CIRCLE_SEGMENTS)
+    if reaper.ImGui_DrawList_AddCircle then reaper.ImGui_DrawList_AddCircle(dl,cx,cy,face,0x171A1CFF,CIRCLE_SEGMENTS,u) end
   end
   return changed and not reset_hit, out, reset_hit
 end
@@ -368,33 +380,35 @@ local function input_button(ctx, track, width, state)
     edit(state,'Set record input',function(t,v)
       api.track.set_input(t,input_selector.source_value(api.track.input(t),v,preserve_channel))
     end,value)
-  end)
+  end,18*CONTROL_SCALE)
 end
 
 local function arm_button(ctx, track, active, automatic, on_click)
+  local u=CONTROL_SCALE
   local x, y = reaper.ImGui_GetCursorScreenPos(ctx)
   local dl = reaper.ImGui_GetWindowDrawList(ctx)
   if dl and reaper.ImGui_DrawList_AddCircleFilled then
-    local cx,cy=x+13,y+13
-    reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,13,0x25282BFF)
+    local cx,cy=x+13*u,y+13*u
+    reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,13*u,(theme.is_light and theme.colors.frame or (theme.is_light and theme.colors.frame or 0x25282BFF)),CIRCLE_SEGMENTS)
     if automatic then
       -- Auto-arm mode stays identifiable while disarmed, but only lights red
       -- when REAPER currently has the selected track armed.
-      reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,10,active and 0xE84B60FF or 0x747B7FFF)
+      reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,10*u,active and 0xE84B60FF or (theme.is_light and 0x626970FF or 0x747B7FFF),CIRCLE_SEGMENTS)
       if reaper.ImGui_DrawList_AddLine then
         local ink=0x111315FF
-        reaper.ImGui_DrawList_AddLine(dl,cx-4.3,cy+4.2,cx,cy-5,ink,1.8)
-        reaper.ImGui_DrawList_AddLine(dl,cx,cy-5,cx+4.3,cy+4.2,ink,1.8)
-        reaper.ImGui_DrawList_AddLine(dl,cx-2.3,cy+1,cx+2.3,cy+1,ink,1.8)
+        reaper.ImGui_DrawList_AddLine(dl,cx-4.3*u,cy+4.2*u,cx,cy-5*u,ink,1.8*u)
+        reaper.ImGui_DrawList_AddLine(dl,cx,cy-5*u,cx+4.3*u,cy+4.2*u,ink,1.8*u)
+        reaper.ImGui_DrawList_AddLine(dl,cx-2.3*u,cy+u,cx+2.3*u,cy+u,ink,1.8*u)
       end
     elseif active then
-      if reaper.ImGui_DrawList_AddCircle then reaper.ImGui_DrawList_AddCircle(dl,cx,cy,10,0xEA4A5FFF,0,3) end
+      if reaper.ImGui_DrawList_AddCircle then reaper.ImGui_DrawList_AddCircle(dl,cx,cy,10*u,0xEA4A5FFF,CIRCLE_SEGMENTS,3*u) end
     elseif reaper.ImGui_DrawList_AddCircle then
-      reaper.ImGui_DrawList_AddCircle(dl,cx,cy,10,0x686D70FF,0,2)
+      reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,10*u,0xA3A8AAFF,CIRCLE_SEGMENTS)
+      reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,5*u,(theme.is_light and theme.colors.frame or (theme.is_light and theme.colors.frame or 0x25282BFF)),CIRCLE_SEGMENTS)
     end
   end
   if reaper.ImGui_InvisibleButton then
-    if reaper.ImGui_InvisibleButton(ctx,'##arm',26,26) then
+    if reaper.ImGui_InvisibleButton(ctx,'##arm',26*u,26*u) then
       local ctrl,alt=key_mods(ctx)
       if ctrl and alt then
         undo.edit('Exclusive record arm',function()
@@ -404,12 +418,14 @@ local function arm_button(ctx, track, active, automatic, on_click)
           end
           if reaper.SetTrackUIRecArm then reaper.SetTrackUIRecArm(track,1,0)
           else reaper.SetMediaTrackInfo_Value(track,'I_RECARM',1) end
-          reaper.TrackList_AdjustWindows(false); reaper.UpdateArrange()
+          reaper.UpdateArrange()
         end)
       else on_click(not active) end
     end
     if reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1) then
-      api.show_native_track_menu('track_input',track)
+      local _,_,shift=key_mods(ctx)
+      if shift then api.show_native_track_menu('track_input',track)
+      else on_click(false) end
     end
     local changed,out=controls.toggle(ctx,active)
     if changed then on_click(out) end
@@ -418,33 +434,33 @@ local function arm_button(ctx, track, active, automatic, on_click)
     local status=automatic and (active and 'Auto-arm when selected • currently armed'
       or 'Auto-arm when selected • currently unarmed')
       or (active and 'Record armed' or 'Record disarmed')
-    reaper.ImGui_SetTooltip(ctx,status..'\nClick: arm  •  Ctrl+Alt: exclusive arm  •  Right-click: REAPER recording options')
+    reaper.ImGui_SetTooltip(ctx,status..'\nClick: arm  •  Ctrl+Alt: exclusive arm\nRight-click: disarm  •  Shift+right-click: REAPER recording options')
   end
 end
 
 local function monitor_button(ctx, mode, on_click, width, compact, track)
-  local w,h=width or 30,compact and 20 or 22
+  local u=compact_px(1,compact)
+  local w,h=compact_px(width or 30,compact),compact_px(compact and 20 or 22,compact)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx); local dl=reaper.ImGui_GetWindowDrawList(ctx)
   local active=mode~=0; local col=active and (mode==2 and 0xE0B64DFF or 0xD5D8DAFF) or 0x697076FF
   if dl and reaper.ImGui_DrawList_AddLine then
     local cx=x+w/2
-    for i=0,2 do
-      local yy=y+6+i*5; local half=3+i*2
-      reaper.ImGui_DrawList_AddLine(dl,cx-half,yy,cx,yy+3,col,2)
-      reaper.ImGui_DrawList_AddLine(dl,cx,yy+3,cx+half,yy,col,2)
-    end
+    reaper.ImGui_DrawList_AddCircleFilled(dl,cx,y+3*u,1.4*u,col,24)
+    for i=0,2 do draw_arc(dl,cx,y+4*u,(6+i*4)*u,math.pi*0.25,math.pi*0.75,col,2*u) end
   end
   if reaper.ImGui_InvisibleButton then
     if reaper.ImGui_InvisibleButton(ctx,'##monitor',w,h) then on_click((mode+1)%3) end
     if track and reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1) then
-      api.show_native_track_menu('track_input',track)
+      local _,_,shift=key_mods(ctx)
+      if shift then api.show_native_track_menu('track_input',track)
+      else on_click(0) end
     end
     local changed,out=controls.choice(ctx,mode,{0,1,2})
     if changed then on_click(out) end
   end
   if reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_SetTooltip then
     local label=({[0]='Monitoring off',[1]='Monitor input',[2]='Tape auto monitoring'})[mode] or 'Input monitoring'
-    reaper.ImGui_SetTooltip(ctx,label..' (click to cycle; right-click for REAPER record options)')
+    reaper.ImGui_SetTooltip(ctx,label..'\nClick: cycle  •  Wheel: mode\nRight-click: off  •  Shift+right-click: REAPER recording options')
   end
 end
 
@@ -499,18 +515,19 @@ local function compact_fx_name(name)
 end
 
 local function routing_button(ctx, track, on_click, compact)
-  local w,h=compact and 24 or 30,36
+  local u=compact_px(1,compact)
+  local w,h=compact_px(compact and 24 or 30,compact),(compact and 26 or 36)*u
   local x, y = reaper.ImGui_GetCursorScreenPos(ctx); local dl = reaper.ImGui_GetWindowDrawList(ctx)
   local route=api.routing_state(track)
   local palette=theme.routing_colors
   if dl and reaper.ImGui_DrawList_AddRectFilled then
-    reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+w,y+h,0x3E4041FF,5)
+    reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+1,x+w-1,y+h-1,(theme.is_light and theme.colors.frame or 0x3A3D3FFF),3)
     local function stripe(yy,active,tint)
-      reaper.ImGui_DrawList_AddRectFilled(dl,x+5,y+yy,x+w-5,y+yy+4,active and tint or palette.inactive,2)
+      reaper.ImGui_DrawList_AddRectFilled(dl,x+5*u,y+yy*u,x+w-5*u,y+(yy+4)*u,active and tint or palette.inactive,2*u)
     end
-    stripe(compact and 6 or 7,route.parent,palette.parent)
-    stripe(16,route.sends+route.hardware>0,palette.send)
-    stripe(compact and 26 or 25,route.receives>0,palette.receive)
+    stripe(compact and 4 or 7,route.parent,palette.parent)
+    stripe(compact and 11 or 16,route.sends+route.hardware>0,palette.send)
+    stripe(compact and 18 or 25,route.receives>0,palette.receive)
   end
   if reaper.ImGui_InvisibleButton then
     if reaper.ImGui_InvisibleButton(ctx, '##routing', w, h) and on_click then on_click() end
@@ -546,21 +563,25 @@ end
 
 local function draw_compact(ctx,state,ah,expanded,narrow)
   local t=state.selected_track
-  local strip_w=102
+  local u=STRIP_SCALE
+  local strip_w=STRIP_WIDTH
+  local right_padding=3*u
   -- Keep the compact controls intact; an exceptionally short parent panel
   -- can scroll instead of silently clipping its footer and lower buttons.
-  local strip_h=math.max(150,ah)
+  local strip_h=math.max(narrow and 150 or 128,ah)
   local no_scroll=(reaper.ImGui_WindowFlags_NoScrollbar and reaper.ImGui_WindowFlags_NoScrollbar() or 0)
     | (reaper.ImGui_WindowFlags_NoScrollWithMouse and reaper.ImGui_WindowFlags_NoScrollWithMouse() or 0)
   safe_child(ctx,'##compact_strip',strip_w,strip_h,no_scroll,function()
     local tight=reaper.ImGui_PushStyleVar and reaper.ImGui_PopStyleVar and reaper.ImGui_StyleVar_ItemSpacing
-    if tight then reaper.ImGui_PushStyleVar(ctx,reaper.ImGui_StyleVar_ItemSpacing(),2,1) end
+    if tight then reaper.ImGui_PushStyleVar(ctx,reaper.ImGui_StyleVar_ItemSpacing(),2*u,u) end
     -- When the dock cannot fit both the fixed strip and its side rack, keep
     -- the native FX-chain/bypass control on the strip instead of clipping it.
     if narrow then
       rack.draw_fx_header(ctx,t,state,true)
       reaper.ImGui_Dummy(ctx,0,2)
     end
+    local strip_font=reaper.ImGui_PushFont and reaper.ImGui_PopFont
+    if strip_font then reaper.ImGui_PushFont(ctx,nil,STRIP_FONT_SIZE) end
     local name=api.track.name(t)
     if name=='' then name='Track' end
     local zx,zy=reaper.ImGui_GetCursorScreenPos(ctx)
@@ -568,7 +589,7 @@ local function draw_compact(ctx,state,ah,expanded,narrow)
     local window_x,window_y=reaper.ImGui_GetWindowPos(ctx)
     local window_w,window_h=reaper.ImGui_GetWindowSize(ctx)
     local dl=reaper.ImGui_GetWindowDrawList(ctx)
-    local header_h=expanded and 67 or 40
+    local header_h=(expanded and 64 or 40)*u
     reaper.ImGui_DrawList_AddRectFilled(dl,window_x,window_y,window_x+window_w,zy+header_h,muted_track_color(api.track.color(t)))
     reaper.ImGui_DrawList_AddLine(dl,window_x+2,window_y+1,window_x+window_w-2,window_y+1,0xFFFFFF25,1)
     local panmode=pan.effective_mode(t)
@@ -578,16 +599,16 @@ local function draw_compact(ctx,state,ah,expanded,narrow)
       local mode=pan.effective_mode(tr)
       if (panmode==6 and mode==6) or (panmode~=6 and mode~=6) then left_native(tr,value) end
     end
-    local pan_x=zx+5
-    local width_x=zx+zw-41
-    reaper.ImGui_SetCursorScreenPos(ctx,pan_x,zy+2)
+    local pan_x=zx+8*u
+    local width_x=zx+zw-45*u
+    reaper.ImGui_SetCursorScreenPos(ctx,pan_x,zy+2*u)
     local changed,out,reset=knob(ctx,'##compact_pan',left_value,-1,1,0xE7E8E3FF,panmode==6 and -1 or 0,panmode==6 and 'Left pan' or 'Pan',nil,true)
     if reset then control_edit(ctx,state,t,'Reset track pan',left_setter,out)
     else undo.gesture(ctx,'compact_pan','Set track pan',changed,function()
       control_each(state,t,ctx,function(tr) left_setter(tr,out) end)
     end) end
     if panmode==5 or panmode==6 then
-      reaper.ImGui_SetCursorScreenPos(ctx,width_x,zy+2)
+      reaper.ImGui_SetCursorScreenPos(ctx,width_x,zy+2*u)
       local second_value=panmode==6 and api.track.dualpan_r(t) or api.track.width(t)
       local second_native=panmode==6 and api.track.set_dualpan_r or api.track.set_width
       local function second_setter(tr,value)
@@ -603,68 +624,88 @@ local function draw_compact(ctx,state,ah,expanded,narrow)
       end) end
     end
     if expanded then
-      reaper.ImGui_SetCursorScreenPos(ctx,zx+4,zy+40)
-      input_button(ctx,t,zw-31,state)
+      reaper.ImGui_SetCursorScreenPos(ctx,zx+4*u,zy+40*u)
+      input_button(ctx,t,math.min(56*u,zw-38*u),state)
       local resume_x,resume_y=reaper.ImGui_GetCursorScreenPos(ctx)
-      reaper.ImGui_SetCursorScreenPos(ctx,zx+zw-27,zy+48)
+      reaper.ImGui_SetCursorScreenPos(ctx,zx+zw-26*CONTROL_SCALE-right_padding,zy+40*u)
       arm_button(ctx,t,api.track.arm(t),api.track.auto_arm(t),
         function(v) edit(state,'Set record arm',api.track.set_arm,v) end)
       reaper.ImGui_SetCursorScreenPos(ctx,resume_x,resume_y)
-      reaper.ImGui_Dummy(ctx,0,8)
+      reaper.ImGui_Dummy(ctx,0,u)
     else
-      reaper.ImGui_SetCursorScreenPos(ctx,zx,zy+40)
+      reaper.ImGui_SetCursorScreenPos(ctx,zx,zy+40*u)
     end
     local value_text=string.format('%.2f',fader_db(api.track.volume(t)))
+    if strip_font then reaper.ImGui_PushFont(ctx,nil,READOUT_FONT_SIZE) end
     local tw=reaper.ImGui_CalcTextSize(ctx,value_text)
     if reaper.ImGui_SetCursorPosX and reaper.ImGui_GetCursorPosX then
-      reaper.ImGui_SetCursorPosX(ctx,reaper.ImGui_GetCursorPosX(ctx)+math.max(0,(zw-tw)/2-5))
+      reaper.ImGui_SetCursorPosX(ctx,reaper.ImGui_GetCursorPosX(ctx)+math.max(0,(zw-tw)/2-5*u))
     end
     reaper.ImGui_TextDisabled(ctx,value_text)
-    local bx,by=reaper.ImGui_GetCursorScreenPos(ctx)
+    if strip_font then reaper.ImGui_PopFont(ctx) end
+    local _,by=reaper.ImGui_GetCursorScreenPos(ctx)
+    local bx=zx
     -- Anchor to the actual child window, not the content cursor (which includes
-    -- theme-dependent padding).  The 22px name and 18px number bands share a
-    -- 1px gap and finish at the strip's visible bottom edge.
-    local footer_y=window_y+window_h-41
-    local travel=math.max(50,footer_y-by-2)
-    reaper.ImGui_DrawList_AddRectFilled(dl,bx,by,bx+zw,by+travel,0x1A1D20FF,2)
-    reaper.ImGui_BeginGroup(ctx)
+    -- theme-dependent padding). Both footer bands finish at the visible edge.
+    local footer_y=window_y+window_h-41*u
+    local bottom_y=footer_y-2*u
+    local travel=math.max(50*u,bottom_y-by)
+    local reduction=meter.read_gain_reduction(t)
+    -- Reserve the widest scaled button as well as the fader and its gap.
+    -- Their scales differ, so a fixed gain-reduction width can push the
+    -- right-hand controls past the strip's content edge.
+    local button_width=26*CONTROL_SCALE
+    local gr_width=math.max(0,math.min(10*u,zw-36*u-28*u-2*u-button_width-right_padding))
+    local fader_x=bx+36*u+gr_width
+    local buttons_x=fader_x+28*u+2*u
+    reaper.ImGui_DrawList_AddRectFilled(dl,bx,by,bx+zw,by+travel,(theme.is_light and theme.colors.panel or 0x242629FF),1)
     local peak_l,peak_r=api.track.peak(t)
-    meter.draw(ctx,peak_l,peak_r,40,'compact_'..tostring(t),travel,api.track.arm(t),t)
-    reaper.ImGui_SameLine(ctx)
-    local fchanged,fvalue=fader.draw(ctx,'##compact_fader',fader_db(api.track.volume(t)),nil,travel,true)
+    reaper.ImGui_SetCursorScreenPos(ctx,bx,by)
+    if strip_font then reaper.ImGui_PushFont(ctx,nil,READOUT_FONT_SIZE) end
+    meter.draw(ctx,peak_l,peak_r,36*u,'compact_'..tostring(t),travel,api.track.arm(t),t,u)
+    if strip_font then reaper.ImGui_PopFont(ctx) end
+    if gr_width>0 then
+      reaper.ImGui_SetCursorScreenPos(ctx,bx+36*u,by)
+      meter.draw_gain_reduction(ctx,reduction,gr_width,travel,tostring(t),u)
+    end
+    reaper.ImGui_SetCursorScreenPos(ctx,fader_x,by)
+    local fchanged,fvalue=fader.draw(ctx,'##compact_fader',fader_db(api.track.volume(t)),nil,travel,true,u)
     local freset=controls.double_click(ctx) or (reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1))
     if freset then control_edit(ctx,state,t,'Reset track volume',api.track.set_volume,1)
     else undo.gesture(ctx,'compact_volume','Set track volume',fchanged,function()
       control_each(state,t,ctx,function(tr) api.track.set_volume(tr,lin(fvalue)) end)
     end) end
-    reaper.ImGui_SameLine(ctx)
-    reaper.ImGui_BeginGroup(ctx)
-    local stack_spacing=reaper.ImGui_PushStyleVar and reaper.ImGui_PopStyleVar and reaper.ImGui_StyleVar_ItemSpacing
-    if stack_spacing then reaper.ImGui_PushStyleVar(ctx,reaper.ImGui_StyleVar_ItemSpacing(),4,4) end
-    if expanded then monitor_button(ctx,api.track.monitor(t),function(v) edit(state,'Set input monitoring',api.track.set_monitor,v) end,24,true,t) end
+    local monitor_y=math.max(by-16*CONTROL_SCALE,zy+40*u+26*CONTROL_SCALE+2*u)
+    local button_y=expanded and math.max(by+14*u,monitor_y+20*CONTROL_SCALE+STRIP_STACK_SPACING*u) or by+4*u
+    local button_step=23*CONTROL_SCALE+STRIP_STACK_SPACING*u
+    reaper.ImGui_SetCursorScreenPos(ctx,buttons_x,button_y)
     small_button(ctx,'M##compact_mute',api.track.mute(t),function()
       local ctrl,alt,shift=key_mods(ctx); set_mute_group(state,t,ctrl,alt,shift)
     end,24,true,function(v) edit(state,'Set track mute',api.track.set_mute,v) end)
+    reaper.ImGui_SetCursorScreenPos(ctx,buttons_x,button_y+button_step)
     small_button(ctx,'S##compact_solo',api.track.solo(t),function()
       local ctrl,alt,shift=key_mods(ctx); set_solo_group(state,t,ctrl,alt,shift)
     end,24,true,function(v) edit(state,'Set track solo',api.track.set_solo,v) end)
     if expanded then
-      reaper.ImGui_Dummy(ctx,0,3)
+      reaper.ImGui_SetCursorScreenPos(ctx,buttons_x,monitor_y)
+      monitor_button(ctx,api.track.monitor(t),function(v) edit(state,'Set input monitoring',api.track.set_monitor,v) end,24,true,t)
+      reaper.ImGui_SetCursorScreenPos(ctx,buttons_x,button_y+2*button_step+3*u)
       routing_button(ctx,t,function() api.show_routing(t) end,true)
-      local _,control_y=reaper.ImGui_GetCursorScreenPos(ctx)
-      local lower_gap=by+travel-48-control_y
-      if lower_gap>0 then reaper.ImGui_Dummy(ctx,0,lower_gap) end
+    end
+
+    if expanded then
+      -- Position each control independently: placing the monitor above M/S
+      -- must not move the routing row back over those buttons.
+      reaper.ImGui_SetCursorScreenPos(ctx,buttons_x,bottom_y-40*CONTROL_SCALE-STRIP_STACK_SPACING*u)
       automation_button(ctx,api.track.automation(t),function() api.show_automation(t) end,true,
         function(v) edit(state,'Set automation mode',api.track.set_automation,v) end)
+      reaper.ImGui_SetCursorScreenPos(ctx,buttons_x,bottom_y-20*CONTROL_SCALE)
       phase_button(ctx,api.track.phase(t),function(v) edit(state,'Toggle track phase',api.track.set_phase,v) end,true)
     end
-    if stack_spacing then reaper.ImGui_PopStyleVar(ctx) end
-    reaper.ImGui_EndGroup(ctx)
-    reaper.ImGui_EndGroup(ctx)
 
     reaper.ImGui_SetCursorScreenPos(ctx,window_x,footer_y)
     local foot_x,foot_y=reaper.ImGui_GetCursorScreenPos(ctx)
-    reaper.ImGui_DrawList_AddRectFilled(dl,foot_x,foot_y,foot_x+window_w,foot_y+22,0x262326FF)
+    reaper.ImGui_DrawList_AddRectFilled(dl,foot_x,foot_y,foot_x+window_w,foot_y+22*u,(theme.is_light and theme.colors.frame or 0x262326FF))
     local short_name=name
     if reaper.ImGui_CalcTextSize(ctx,name)>window_w-8 then
       while #short_name>0 and reaper.ImGui_CalcTextSize(ctx,short_name..'…')>window_w-8 do
@@ -674,13 +715,16 @@ local function draw_compact(ctx,state,ah,expanded,narrow)
     end
     if short_name~=name then short_name=short_name..'…' end
     local name_w=reaper.ImGui_CalcTextSize(ctx,short_name)
-    reaper.ImGui_DrawList_AddText(dl,foot_x+(window_w-name_w)/2,foot_y+3,0xE2E0DEFF,short_name)
+    reaper.ImGui_DrawList_AddText(dl,foot_x+(window_w-name_w)/2,foot_y+3*u,(theme.is_light and theme.colors.text or 0xE2E0DEFF),short_name)
     local number=reaper.GetMediaTrackInfo_Value(t,'IP_TRACKNUMBER') or 0
     local number_text=number>0 and tostring(math.floor(number)) or ' '
-    reaper.ImGui_DrawList_AddRectFilled(dl,foot_x,foot_y+22,foot_x+window_w,foot_y+41,footer_track_color(api.track.color(t)))
+    reaper.ImGui_DrawList_AddRectFilled(dl,foot_x,foot_y+22*u,foot_x+window_w,foot_y+41*u,footer_track_color(api.track.color(t)))
+    if strip_font then reaper.ImGui_PushFont(ctx,nil,(theme.font_sizes and theme.font_sizes.caption) or 11) end
     local number_w=reaper.ImGui_CalcTextSize(ctx,number_text)
-    reaper.ImGui_DrawList_AddText(dl,foot_x+(window_w-number_w)/2,foot_y+24,0x222427FF,number_text)
-    reaper.ImGui_Dummy(ctx,window_w,41)
+    reaper.ImGui_DrawList_AddText(dl,foot_x+(window_w-number_w)/2,foot_y+24*u,0x222427FF,number_text)
+    if strip_font then reaper.ImGui_PopFont(ctx) end
+    reaper.ImGui_Dummy(ctx,window_w,41*u)
+    if strip_font then reaper.ImGui_PopFont(ctx) end
     if tight then reaper.ImGui_PopStyleVar(ctx) end
   end)
 end
@@ -691,11 +735,16 @@ function M.draw(ctx,state)
   local available_width,available_height=reaper.ImGui_GetContentRegionAvail(ctx)
   available_width,available_height=available_width or 280,available_height or 400
   local rack_only=state.channel_rack_only==true
-  local compact=available_height<230
+  local strip_width=STRIP_WIDTH
+  local narrow=available_width<=strip_width
+  -- Budget the actual scaled header, readout, six controls and footer.
+  -- The standalone strip also needs its FX header above the pan controls.
+  local stack_height=(23+23+26)*CONTROL_SCALE+(3+14+4*STRIP_STACK_SPACING)*STRIP_SCALE
+  local bottom_row=40*CONTROL_SCALE+STRIP_STACK_SPACING*STRIP_SCALE
+  local full_height=(64+41+2)*STRIP_SCALE+STRIP_FONT_SIZE+stack_height+bottom_row
+  local compact=available_height<full_height+(narrow and 28 or 0)
   if M.last_compact~=nil and M.last_compact~=compact then undo.flush_gestures() end
   M.last_compact=compact
-  local strip_width=102
-  local narrow=available_width<=strip_width
   if not rack_only then
     draw_compact(ctx,state,available_height,not compact,narrow)
     if narrow then return end

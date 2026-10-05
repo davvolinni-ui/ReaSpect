@@ -13,7 +13,7 @@ function M.draw(ctx,state,items)
     function(v) selection.edit(takes,'Set MIDI take rate',api.take.set_rate,v) end,
     '%+.0f st','%.3f x',{step=1,quantum=1,min=-127,max=127,default=0,
       on_delta=selection.delta_editor(takes,'Adjust MIDI transpose',api.take.pitch,api.take.set_pitch,-127,127,1),tooltip='Transpose MIDI take playback in semitones.'},
-    {step=0.01,min=0.01,max=100,default=1,on_delta=selection.delta_editor(takes,'Adjust MIDI rate',api.take.rate,api.take.set_rate,0.01,100),tooltip='MIDI take playback rate. Event boundaries stay in place.'})
+    {step=0.01,drag_step=0.005,min=0.01,max=100,default=1,on_delta=selection.delta_editor(takes,'Adjust MIDI rate',api.take.rate,api.take.set_rate,0.01,100),tooltip='MIDI take playback rate. Event boundaries stay in place.'})
   if actions.available('midi_editor') then
     if reaper.ImGui_Button(ctx,'Open MIDI editor##event_midi_editor',-1,23) then actions.queue('midi_editor',items) end
   end

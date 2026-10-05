@@ -1,9 +1,15 @@
 -- @description ReaSpect - context-sensitive inspector
--- @version 0.1.0-test
+-- @version 0.1.1-test
 -- @author Davvo
 -- @link https://forum.cockos.com/showthread.php?t=311132
 -- @about Testing release. Requires REAPER 6.8+ and ReaImGui. Read EULA.md before use.
--- @changelog Initial ReaPack testing release.
+-- @changelog
+--   Add per-track Notes with wrapped display, click-to-edit and project persistence.
+--   Add draggable numeric fields, faster fade adjustments and consistent right-click defaults.
+--   Reduce repeated menu redraws by grouping wheel edits and saving Notes after editing.
+--   Improve Channel strip spacing, FX/Sends layout, numeric limits and selection-scoped undo.
+--   Improve native meters, fader preference support, FX slot handling and FX search.
+--   Remove redundant single-type event captions; retain mixed-selection summaries and tooltips.
 -- @metapackage
 -- @provides
 --   [main] ../ReaSpect.lua > ReaSpect.lua

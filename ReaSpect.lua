@@ -15,6 +15,7 @@ local rack = require('ReaSpect.widgets.rack')
 local item_actions = require('ReaSpect.core.item_actions')
 local track_actions = require('ReaSpect.core.track_actions')
 local fx_parameters = require('ReaSpect.widgets.fx_parameters')
+local track_notes = require('ReaSpect.widgets.track_notes')
 local native_ui = require('ReaSpect.core.native_ui')
 local diagnostics = require('ReaSpect.core.diagnostics')
 
@@ -61,7 +62,7 @@ local function panel_button(key)
   local reverse=key=='channel' and reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1)
   local hovered=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+25,y+24,active and (palette.border or 0x4A525AFF) or (hovered and (palette.frame or 0x373D43FF) or (palette.panel or 0x292C30FF)),3)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+25,y+24,active and (theme.is_light and palette.frame or (palette.border or 0x4A525AFF)) or (hovered and (palette.frame or 0x373D43FF) or (palette.panel or 0x292C30FF)),3)
   -- Borders are intentionally subdued; using them for inactive glyphs makes
   -- the toolbar icons nearly disappear. Normal text stays legible and adapts
   -- to both dark and light imported themes.
@@ -158,7 +159,7 @@ local function brand_wordmark()
   local available=reaper.ImGui_GetContentRegionAvail(ctx) or 280
   local _,row_y=reaper.ImGui_GetCursorScreenPos(ctx)
   local compact=available<248
-  local font_size=compact and 17 or 20
+  local font_size=(theme.font_sizes and theme.font_sizes.brand) or 16
   local mark_size=available>=220 and (compact and 20 or 24) or nil
   if mark_size then
     brand_mark(mark_size)
@@ -232,11 +233,17 @@ end
 
 local function draw_frame()
   state.update()
+  local edit_context={tostring(state.project),tostring(state.selected_track),tostring(state.active_take)}
+  for _,track in ipairs(state.selected_tracks or {}) do edit_context[#edit_context+1]=tostring(track) end
+  for _,item in ipairs(state.selected_items or {}) do edit_context[#edit_context+1]=tostring(item) end
+  undo.set_context(table.concat(edit_context,'|'))
+  track_notes.process(state)
   controls.begin_frame(ctx)
   -- Push theme colors for this frame and always pop them before the frame ends.
   theme.apply(ctx)
   if reaper.ImGui_SetNextWindowSize and reaper.ImGui_Cond_FirstUseEver then reaper.ImGui_SetNextWindowSize(ctx,280,760,reaper.ImGui_Cond_FirstUseEver()) end
   local visible, open = reaper.ImGui_Begin(ctx,'ReaSpect',true,window_flags)
+  if not visible then track_notes.flush() end
   if visible then
     brand_wordmark()
     reaper.ImGui_SameLine(ctx)
@@ -290,13 +297,16 @@ local function draw_frame()
     end
     reaper.ImGui_End(ctx)
   end
-  if reaper.ImGui_IsMouseDown and not reaper.ImGui_IsMouseDown(ctx,0) then finish_edits() end
+  if reaper.ImGui_IsMouseDown and not reaper.ImGui_IsMouseDown(ctx,0)
+      and (not reaper.ImGui_IsAnyItemActive or not reaper.ImGui_IsAnyItemActive(ctx)) then finish_edits() end
   theme.draw_editor(ctx)
   theme.pop(ctx)
   return open
 end
 
 local function step()
+  undo.wheel_source(false)
+  undo.poll()
   -- Let REAPER finish the previous deferred callback (including ReaImGui's
   -- frame submission) before entering a native menu, dialog or plug-in. End()
   -- alone only closes a window; it does not finish the ImGui frame.
@@ -315,6 +325,8 @@ local function cleanup()
   released=true
   running=false
   native_ui.clear()
+  pcall(undo.flush_wheel)
+  pcall(track_notes.flush)
   pcall(finish_edits)
   diagnostics.event('session_end')
   if reaper.ImGui_DestroyContext then pcall(reaper.ImGui_DestroyContext,ctx) end

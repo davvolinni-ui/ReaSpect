@@ -89,14 +89,14 @@ function M.draw(ctx,state,items)
     end,v) end,
     function(v) edit('Set take pan',api.take.set_pan,v/100) end,
     '%+.2f dB','%+.0f %%',
-    {step=0.1,min=-150,max=60,default=0,on_delta=selection.delta_editor(takes,'Adjust take gain',gain,set_gain,-150,60),tooltip='Active take gain in dB; preserves take polarity.'},
-    {step=1,min=-100,max=100,default=0,on_delta=selection.delta_editor(takes,'Adjust take pan',pan,set_pan,-100,100),tooltip='Take pan: −100% left, 0% center, +100% right.'})
+    {step=0.1,drag_step=0.05,min=-150,max=60,default=0,on_delta=selection.delta_editor(takes,'Adjust take gain',gain,set_gain,-150,60),tooltip='Active take gain in dB; preserves take polarity.'},
+    {step=1,drag_step=1,min=-100,max=100,default=0,on_delta=selection.delta_editor(takes,'Adjust take pan',pan,set_pan,-100,100),tooltip='Take pan: −100% left, 0% center, +100% right.'})
   prop.dual_number(ctx,'Transpose','##pitch',shared(api.take.pitch),'Rate','##rate',shared(api.take.rate),
     function(v) edit('Set take transpose',api.take.set_pitch,v) end,
     function(v) edit('Set take playback rate',api.take.set_rate,v) end,
     '%+.2f st','%.3f x',
     {step=1,min=-96,max=96,default=0,on_delta=selection.delta_editor(takes,'Adjust take transpose',api.take.pitch,api.take.set_pitch,-96,96),tooltip='Semitones. Decimal values tune in cents: 0.01 st = 1 cent.'},
-    {step=0.01,min=0.01,max=100,default=1,on_delta=selection.delta_editor(takes,'Adjust take rate',api.take.rate,api.take.set_rate,0.01,100),tooltip='Playback rate: 1 = original speed. Event boundaries stay in place.'})
+    {step=0.01,drag_step=0.005,min=0.01,max=100,default=1,on_delta=selection.delta_editor(takes,'Adjust take rate',api.take.rate,api.take.set_rate,0.01,100),tooltip='Playback rate: 1 = original speed. Event boundaries stay in place.'})
   prop.row(ctx,'Fine tune',function()
     local width=reaper.ImGui_GetContentRegionAvail(ctx)
     local function tune_button(label,w,delta)

@@ -1,6 +1,9 @@
 local persist = require('ReaSpect.core.persistence')
 local M = {editor_open=false,suggestions={},is_light=false}
+-- Logical pixel sizes; ReaImGui applies the display's DPI scaling.
+M.font_sizes={body=12,heading=12,caption=11,readout=11,button=14,brand=16}
 local defaults={window=0x17191CFF,panel=0x1D2024FF,frame=0x292C30FF,text=0xD4D7DBFF,accent=0xC6A4F3FF,gold=0xE5B84DFF,meter=0x7859C9FF,border=0x454A50FF,route_parent=0xC6A4F3FF,route_send=0xF2C43DFF,route_receive=0xEA5264FF}
+local light_defaults={window=0xE3E5E8FF,panel=0xF2F3F5FF,frame=0xD8DBDFFF,text=0x202327FF,border=0xA9AFB6FF}
 local keys={'window','panel','frame','text','accent','gold','meter','border','route_parent','route_send','route_receive'}
 local labels={window='Window Background',panel='Panel Background',frame='Control Surface',text='Normal Text',accent='Accent / Negative Width',gold='Width / Send Accent',meter='Meter',border='Borders',route_parent='Parent Routing / Accent',route_send='Send Routing / Yellow',route_receive='Receive Routing / Red'}
 M.colors={}
@@ -47,8 +50,13 @@ local function guard_light_palette(c)
     if adjusted~=c[key] then c[key]=adjusted;changed=true end
   end
   guard('text',112);guard('frame',28);guard('border',46)
-  guard('accent',42);guard('gold',42);guard('meter',42)
-  guard('route_parent',42);guard('route_send',42);guard('route_receive',42)
+  guard('accent',110);guard('gold',110);guard('meter',65)
+  guard('route_parent',110);guard('route_send',110);guard('route_receive',110)
+  -- Accents also appear on controls, whose backgrounds are darker than the panel.
+  for _,key in ipairs({'accent','gold','route_parent','route_send','route_receive'}) do
+    local adjusted=ensure_contrast(c[key],c.frame,100)
+    if adjusted~=c[key] then c[key]=adjusted;changed=true end
+  end
   return changed
 end
 local function chroma(c)
@@ -103,12 +111,21 @@ function M.import(mode)
 end
 function M.reset(light)
   M.colors=copy(defaults)
-  if light then M.colors.window=0xE3E5E8FF;M.colors.panel=0xF2F3F5FF;M.colors.frame=0xD8DBDFFF;M.colors.text=0x202327FF;M.colors.border=0xA9AFB6FF end
+  if light then for key,value in pairs(light_defaults) do M.colors[key]=value end end
   M.is_light=not not light
   guard_light_palette(M.colors)
   M.suggestions={};save()
   persist.set('accent_palette_version',1)
   persist.set('routing_palette_version',2)
+end
+function M.reset_color(key)
+  if defaults[key]==nil then return false end
+  M.colors[key]=(M.is_light and light_defaults[key]) or defaults[key]
+  if key=='accent' then M.colors.route_parent=M.colors.accent
+  elseif key=='gold' then M.colors.route_send=M.colors.gold end
+  guard_light_palette(M.colors)
+  save()
+  return true
 end
 local function load()
   if M.loaded then return end
@@ -163,7 +180,9 @@ local function draw_editor_contents(ctx)
     reaper.ImGui_Text(ctx,labels[key]);reaper.ImGui_SameLine(ctx,215)
     if reaper.ImGui_SetNextItemWidth then reaper.ImGui_SetNextItemWidth(ctx,22) end
     local changed,value=reaper.ImGui_ColorEdit4(ctx,'##theme_'..key,to_widget(M.colors[key]),flags)
-    if changed then
+    local reset=reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsItemClicked(ctx,1)
+    if reset then M.reset_color(key)
+    elseif changed then
       M.colors[key]=from_widget(value)
       if key=='accent' then M.colors.route_parent=M.colors.accent
       elseif key=='gold' then M.colors.route_send=M.colors.gold end
@@ -171,6 +190,7 @@ local function draw_editor_contents(ctx)
       guard_light_palette(M.colors)
       save()
     end
+    if reaper.ImGui_IsItemHovered(ctx) then reaper.ImGui_SetTooltip(ctx,'Right-click: reset this color to the current light/dark preset') end
     for i,choice in ipairs((M.suggestions or {})[key] or {}) do
       reaper.ImGui_SameLine(ctx)
       if reaper.ImGui_ColorButton(ctx,'##choice_'..key..i,to_widget(choice.color),flags,18,18) then
@@ -204,6 +224,11 @@ function M.draw_editor(ctx)
 end
 function M.apply(ctx)
   load()
+  M.font_pushed=false
+  if reaper.ImGui_PushFont and reaper.ImGui_PopFont then
+    reaper.ImGui_PushFont(ctx,nil,M.font_sizes.body)
+    M.font_pushed=true
+  end
   local push = reaper.ImGui_PushStyleColor
   if not push then M.count=0; return end
   local function C(name) local f=reaper['ImGui_Col_'..name]; return f and f() end
@@ -232,6 +257,7 @@ end
 function M.pop(ctx)
   if reaper.ImGui_PopStyleVar and (M.vars or 0)>0 then reaper.ImGui_PopStyleVar(ctx,M.vars) end
   if reaper.ImGui_PopStyleColor and (M.count or 0)>0 then reaper.ImGui_PopStyleColor(ctx, M.count) end
+  if M.font_pushed then reaper.ImGui_PopFont(ctx);M.font_pushed=false end
   M.count=0; M.vars=0
 end
 return M

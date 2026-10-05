@@ -11,6 +11,7 @@ local fx_parameters = require('ReaSpect.widgets.fx_parameters')
 local panel_body = require('ReaSpect.widgets.panel_body')
 local track_tools = require('ReaSpect.widgets.track_tools')
 local icon_browser = require('ReaSpect.widgets.icon_browser')
+local track_notes = require('ReaSpect.widgets.track_notes')
 local M = {rename=nil}
 
 local timebases = {'Project default','Time','Beats (pos/len/rate)','Beats (position only)'}
@@ -33,7 +34,13 @@ local function shared(state, getter)
   return first
 end
 local function edit(state,label, setter, value)
-  undo.edit(label,function() each_track(state,function(t) setter(t,value) end); reaper.TrackList_AdjustWindows(false); reaper.UpdateArrange() end)
+  undo.edit(label,function()
+    each_track(state,function(t) setter(t,value) end)
+    if setter==api.track.set_channels or setter==api.track.set_folder_depth or setter==api.track.set_free_mode then
+      reaper.TrackList_AdjustWindows(false)
+    end
+    reaper.UpdateArrange()
+  end)
 end
 
 local function delta_editor(state,label,getter,setter,min,max,quantum)
@@ -225,7 +232,7 @@ local function playback_offset(ctx,state)
       reaper.SetMediaTrackInfo_Value(track,'I_PLAY_OFFSET_FLAG',(flags&~2)|(samples and 2 or 0))
       reaper.SetMediaTrackInfo_Value(track,'D_PLAY_OFFSET',samples and math.floor(n+0.5) or n/1000)
     end,v)
-  end,samples and '%.0f samples' or '%.2f ms',{step=samples and 1 or 0.1,quantum=samples and 1 or nil,default=0,
+  end,samples and '%.0f samples' or '%.2f ms',{step=samples and 1 or 0.1,drag_step=samples and 1 or 0.1,quantum=samples and 1 or nil,default=0,
     on_delta=function(delta)
       -- Mixed units are adjusted in each track's own displayed unit.
       edit(state,'Adjust track playback offset',function(track)
@@ -298,7 +305,12 @@ local function placement_controls(ctx,state)
       end,math.max(1,math.floor(v+0.5)))
       if reaper.UpdateTimeline then reaper.UpdateTimeline() end
     end,'%.0f',{step=1,quantum=1,min=1,on_delta=delta_editor(state,'Adjust fixed lanes',function(track) return track_value(track,'I_NUMFIXEDLANES') end,
-      function(track,n) if api.track.free_mode(track)==2 then reaper.SetMediaTrackInfo_Value(track,'I_NUMFIXEDLANES',n) end end,1,nil,1),tooltip='Number of lanes on the selected fixed-lane tracks.'})
+      function(track,n)
+        if api.track.free_mode(track)==2 then
+          reaper.SetMediaTrackInfo_Value(track,'I_NUMFIXEDLANES',n)
+          if reaper.UpdateTimeline then reaper.UpdateTimeline() end
+        end
+      end,1,nil,1),tooltip='Number of lanes on the selected fixed-lane tracks.'})
   end
 end
 
@@ -518,6 +530,7 @@ function M.draw(ctx, state)
     end
     fx_parameters.draw(ctx,state)
     track_tools.draw(ctx,state)
+    track_notes.draw(ctx,state)
   end)
 end
 

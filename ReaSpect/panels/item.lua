@@ -66,7 +66,7 @@ local function draw_header(ctx,context)
     end
   end
   header.draw(ctx,{
-    id=context.scope,name=name,badge=badge,kind=context.kind,color=event_color(item),caption=caption,
+    id=context.scope,name=name,badge=badge,kind=context.kind,color=event_color(item),caption=caption,show_caption=context.kind=='mixed',
     tooltip=name..'\n'..caption..(track and '\n'..api.track.name(track) or ''),
     on_color=function(v) selection.edit(items,'Set event color',set_event_color,v) end,
     on_rename=#items==1 and take and function(v) selection.edit({take},'Rename active take',api.take.set_name,v) end or nil,
@@ -112,15 +112,15 @@ local function draw_timing(ctx,items)
     end,
     function(v) selection.edit(items,'Set event length',api.item.set_length,v) end,
     '%.3f s','%.3f s',
-    {step=0.01,tooltip=#items>1 and 'Start of the selection. Moves all selected events together, preserving their spacing.' or 'Event position in project seconds.'},
-    {step=0.01,min=0.001,on_delta=selection.delta_editor(items,'Adjust event lengths',api.item.length,api.item.set_length,0.001),tooltip='Event duration. Entering a length applies that duration to each selected event.'})
+    {step=0.01,drag_step=0.01,tooltip=#items>1 and 'Start of the selection. Moves all selected events together, preserving their spacing.' or 'Event position in project seconds.'},
+    {step=0.01,drag_step=0.01,min=0.001,on_delta=selection.delta_editor(items,'Adjust event lengths',api.item.length,api.item.set_length,0.001),tooltip='Event duration. Entering a length applies that duration to each selected event.'})
 end
 
 local function draw_timing_details(ctx,state,items)
   if not prop.section(ctx,state,'item_timing','Timing / More',false) then return end
   prop.number(ctx,'End','##itemend',selection.shared(items,function(i) return api.item.position(i)+api.item.length(i) end),function(v)
     selection.edit(items,'Set event end',function(i,value) api.item.set_length(i,math.max(0.001,value-api.item.position(i))) end,v)
-  end,'%.3f s',{step=0.01,on_delta=selection.delta_editor(items,'Adjust event ends',api.item.length,api.item.set_length,0.001),tooltip='Right edge in project seconds. Changes length while keeping each event start fixed.'})
+  end,'%.3f s',{step=0.01,drag_step=0.01,on_delta=selection.delta_editor(items,'Adjust event ends',api.item.length,api.item.set_length,0.001),tooltip='Right edge in project seconds. Changes length while keeping each event start fixed.'})
   prop.number(ctx,'Snap offset','##snap',selection.shared(items,api.item.snap),function(v)
     selection.edit(items,'Set event snap offset',api.item.set_snap,v)
   end,'%.3f s',{step=0.001,min=0,default=0,on_delta=selection.delta_editor(items,'Adjust snap offsets',api.item.snap,api.item.set_snap,0),tooltip='Snap/sync point, measured from the start of each event.'})

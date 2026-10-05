@@ -1,7 +1,8 @@
 local M = {}
+local undo=require('ReaSpect.core.undo')
 local wheel_claimed = {}
 
-function M.begin_frame(ctx) wheel_claimed[tostring(ctx)] = false end
+function M.begin_frame(ctx) wheel_claimed[tostring(ctx)] = false;undo.wheel_source(false) end
 
 function M.scroll_flags(flags)
   return (flags or 0) | reaper.ImGui_WindowFlags_NoScrollWithMouse()
@@ -30,14 +31,19 @@ function M.scroll_end(ctx)
 end
 
 function M.wheel_delta(ctx)
+  undo.wheel_source(false)
   if not reaper.ImGui_IsItemHovered(ctx) then return 0 end
   -- Claim even at a limit, over mixed values, or with a zero wheel delta.
   wheel_claimed[tostring(ctx)] = true
-  return reaper.ImGui_GetMouseWheel(ctx) or 0
+  local delta=reaper.ImGui_GetMouseWheel(ctx) or 0
+  undo.wheel_source(delta~=0)
+  return delta
 end
 
 function M.right_click(ctx)
-  return reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsItemClicked(ctx,1)
+  local clicked=reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsItemClicked(ctx,1)
+  if clicked then undo.wheel_source(false) end
+  return clicked
 end
 
 function M.wheel_step(ctx, step, quantum)
@@ -131,6 +137,16 @@ function M.input_double(ctx, id, value, fmt, width)
   if width and reaper.ImGui_SetNextItemWidth then reaper.ImGui_SetNextItemWidth(ctx,width) end
   local changed, out = reaper.ImGui_InputDouble(ctx, id, value, 0, 0, fmt or '%.3f')
   return changed, out
+end
+
+function M.drag_double(ctx,id,value,fmt,opts)
+  opts=opts or {}
+  if not reaper.ImGui_DragDouble then return M.input_double(ctx,id,value,fmt) end
+  local speed=opts.drag_step or math.max((opts.step or .1)*.1,opts.quantum or 0)
+  local flags=reaper.ImGui_SliderFlags_AlwaysClamp and reaper.ImGui_SliderFlags_AlwaysClamp() or 0
+  local min,max=0,0
+  if opts.min or opts.max then min,max=opts.min or -1e100,opts.max or 1e100 end
+  return reaper.ImGui_DragDouble(ctx,id,value,speed,min,max,fmt or '%.3f',flags)
 end
 
 function M.slider_double(ctx, id, value, min, max, fmt, width)

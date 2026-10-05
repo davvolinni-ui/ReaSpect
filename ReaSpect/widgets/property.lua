@@ -1,6 +1,7 @@
 local c = require('ReaSpect.widgets.controls')
 local theme = require('ReaSpect.core.theme')
 local M = {}
+local undo=require('ReaSpect.core.undo')
 local scopes, mixed_inputs = {}, {}
 local function soften(a,b)
   local function part(shift) return math.floor(((a>>shift)&255)*.76+((b>>shift)&255)*.24+.5) end
@@ -81,7 +82,7 @@ function M.checkbox(ctx, label, id, value, on_change, default)
   end)
 end
 
-local function number_input(ctx,id,value,on_change,fmt,opts)
+local function number_input(ctx,id,value,on_change,fmt,opts,label)
   opts=opts or {}
   local widget_id=id..'##scope_'..tostring(scopes[tostring(ctx)] or '')
   local function commit(v)
@@ -89,6 +90,9 @@ local function number_input(ctx,id,value,on_change,fmt,opts)
     if opts.min then v=math.max(opts.min,v) end
     if opts.max then v=math.min(opts.max,v) end
     if opts.quantum then v=math.floor(v/opts.quantum+0.5)*opts.quantum end
+    if opts.min then v=math.max(opts.min,v) end
+    if opts.max then v=math.min(opts.max,v) end
+    if v==value then return end
     on_change(v)
   end
   if value=='__MIXED__' then
@@ -116,21 +120,23 @@ local function number_input(ctx,id,value,on_change,fmt,opts)
     end
   else
     mixed_inputs[tostring(ctx)..id]=nil
-    local changed,out=c.input_double(ctx,widget_id,value or 0,fmt)
+    local changed,out=c.drag_double(ctx,widget_id,value or 0,fmt,opts)
     local wh,nv=c.wheel(ctx,value or 0,opts.step or 0.1,opts.min,opts.max,opts.quantum)
     if opts.default~=nil and c.right_click(ctx) then
       if value~=opts.default then commit(opts.default) end
     elseif wh then commit(nv)
-    elseif changed then commit(out) end
+    else
+      undo.property_gesture(ctx,widget_id,'Adjust '..(label or 'value'),changed,function() commit(out) end)
+    end
   end
-  local hint='Wheel: adjust  •  Shift: fine  •  Ctrl: coarse'
-  if value=='__MIXED__' then hint=hint..'\nWheel preserves value differences; typing sets all selected values.' end
+  local hint='Drag left/right: adjust  •  Alt: fine  •  Shift: faster\nDouble-click or Ctrl-click: type a value\nWheel: adjust  •  Shift: fine  •  Ctrl: coarse'
+  if value=='__MIXED__' then hint='Click to type a value\nWheel: adjust  •  Shift: fine  •  Ctrl: coarse\nWheel preserves value differences; typing sets all selected values.' end
   if opts.default~=nil then hint=hint..'\nRight-click: reset to '..string.format(fmt or '%.3f',opts.default) end
   M.tooltip(ctx,(opts.tooltip and (opts.tooltip..'\n') or '')..hint)
 end
 
 function M.number(ctx, label, id, value, on_change, fmt, opts)
-  M.row(ctx,label,function() number_input(ctx,id,value,on_change,fmt,opts) end)
+  M.row(ctx,label,function() number_input(ctx,id,value,on_change,fmt,opts,label) end)
 end
 
 function M.dual_number(ctx, label_a, id_a, value_a, label_b, id_b, value_b, on_a, on_b, fmt_a, fmt_b, opts_a, opts_b)
@@ -145,7 +151,7 @@ function M.dual_number(ctx, label_a, id_a, value_a, label_b, id_b, value_b, on_a
     reaper.ImGui_BeginGroup(ctx)
     reaper.ImGui_TextColored(ctx,soften(theme.colors.text,theme.colors.panel),label)
     reaper.ImGui_SetNextItemWidth(ctx,width)
-    number_input(ctx,id,value,callback,fmt,opts)
+    number_input(ctx,id,value,callback,fmt,opts,label)
     reaper.ImGui_EndGroup(ctx)
   end
   field(label_a,id_a,value_a,on_a,fmt_a,opts_a)

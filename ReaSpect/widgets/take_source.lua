@@ -202,7 +202,7 @@ function M.draw(ctx, state, items, kind)
     end
     prop.number(ctx, 'Source offset', '##source_offset', shared(takes, api.take.start), function(value)
       edit(takes, 'Set take source offset', api.take.set_start, value)
-    end, '%.3f s', { step = 0.01, default=0,on_delta=selection.delta_editor(takes,'Adjust take source offset',api.take.start,api.take.set_start),tooltip = 'Start offset in source seconds for each active take.' })
+    end, '%.3f s', { step = 0.01, drag_step = 0.01, default=0,on_delta=selection.delta_editor(takes,'Adjust take source offset',api.take.start,api.take.set_start),tooltip = 'Start offset in source seconds for each active take.' })
     local audio_only = true
     for _, take in ipairs(takes) do if api.take.is_midi(take) then audio_only = false; break end end
     if audio_only then

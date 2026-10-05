@@ -42,8 +42,8 @@ function M.draw(ctx, state, items)
     function(value) set_length(items, 'Set item fade in', api.item.set_fade_in, value) end,
     function(value) set_length(items, 'Set item fade out', api.item.set_fade_out, value) end,
     '%.3f s', '%.3f s',
-    { step = 0.001, min = 0, default=0, on_delta=selection.delta_editor(items,'Adjust fade in',api.item.fade_in,function(i,v) api.item.set_fade_in(i,math.min(v,api.item.length(i))) end,0),tooltip = 'Manual fade-in length. Limited to each event’s length; automatic crossfades are preserved.' },
-    { step = 0.001, min = 0, default=0, on_delta=selection.delta_editor(items,'Adjust fade out',api.item.fade_out,function(i,v) api.item.set_fade_out(i,math.min(v,api.item.length(i))) end,0),tooltip = 'Manual fade-out length. Limited to each event’s length; automatic crossfades are preserved.' })
+    { step = 0.05, min = 0, default=0, on_delta=selection.delta_editor(items,'Adjust fade in',api.item.fade_in,function(i,v) api.item.set_fade_in(i,math.min(v,api.item.length(i))) end,0),tooltip = 'Manual fade-in length. Limited to each event’s length; automatic crossfades are preserved.' },
+    { step = 0.05, min = 0, default=0, on_delta=selection.delta_editor(items,'Adjust fade out',api.item.fade_out,function(i,v) api.item.set_fade_out(i,math.min(v,api.item.length(i))) end,0),tooltip = 'Manual fade-out length. Limited to each event’s length; automatic crossfades are preserved.' })
   auto_fade_note(ctx, items)
   if not prop.section(ctx, state, 'item_fades', 'Fade shapes', false) then return end
   local fade_in = selection.shared(items, api.item.fade_in_shape)

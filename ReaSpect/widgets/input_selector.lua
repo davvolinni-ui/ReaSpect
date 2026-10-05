@@ -71,10 +71,10 @@ local function audio_menu(ctx,title,entries,current,on_change)
   end
 end
 
-function M.draw(ctx,track,width,state,on_change)
+function M.draw(ctx,track,width,state,on_change,height)
   local value=api.track.input(track)
   local popup='##input_sources_'..tostring(track)
-  local clicked=reaper.ImGui_Button(ctx,M.label(value)..'  ▾##input',width,21)
+  local clicked=reaper.ImGui_Button(ctx,M.label(value)..'  ▾##input',width,height or 21)
   local _,values=api.record_inputs()
   local reset=controls.right_click(ctx)
   local changed,out=controls.choice(ctx,is_midi(value) and (value&~31) or value,values,-1)

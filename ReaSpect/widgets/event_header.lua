@@ -83,8 +83,10 @@ function M.draw(ctx,opts)
   if reaper.ImGui_IsItemHovered(ctx) then reaper.ImGui_SetTooltip(ctx,opts.caption) end
   reaper.ImGui_SetCursorScreenPos(ctx,x,y+height)
   reaper.ImGui_Dummy(ctx,0,3)
-  reaper.ImGui_TextDisabled(ctx,fit(ctx,opts.caption,width))
-  if reaper.ImGui_IsItemHovered(ctx) then reaper.ImGui_SetTooltip(ctx,opts.caption) end
+  if opts.show_caption then
+    reaper.ImGui_TextDisabled(ctx,fit(ctx,opts.caption,width))
+    if reaper.ImGui_IsItemHovered(ctx) then reaper.ImGui_SetTooltip(ctx,opts.caption) end
+  end
 end
 
 return M
