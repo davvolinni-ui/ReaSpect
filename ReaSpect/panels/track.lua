@@ -396,11 +396,6 @@ function M.draw(ctx, state)
   local number_left=hx+strip_w
   local number_right=hx+40
   reaper.ImGui_DrawList_AddRectFilled(dl,number_left,hy,number_right,hy+header_h,theme.colors.panel or 0x1D2024FF)
-  if reaper.ImGui_DrawList_AddLine then
-    local edge=theme.colors.border or 0x454A50FF
-    reaper.ImGui_DrawList_AddLine(dl,number_left,hy+4,number_left,hy+header_h-4,edge,1)
-    reaper.ImGui_DrawList_AddLine(dl,number_right,hy+4,number_right,hy+header_h-4,edge,1)
-  end
   local number=reaper.GetMediaTrackInfo_Value(t,'IP_TRACKNUMBER') or 0
   local number_text=number>0 and tostring(math.floor(number)) or 'M'
   local number_w=header_text_width(ctx,number_text)

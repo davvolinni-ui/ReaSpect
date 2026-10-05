@@ -3,7 +3,9 @@ local M = {editor_open=false,suggestions={},is_light=false}
 -- Logical pixel sizes; ReaImGui applies the display's DPI scaling.
 M.font_sizes={body=12,heading=12,caption=11,readout=11,button=14,brand=16}
 local defaults={window=0x17191CFF,panel=0x1D2024FF,frame=0x292C30FF,text=0xD4D7DBFF,accent=0xC6A4F3FF,gold=0xE5B84DFF,meter=0x7859C9FF,border=0x454A50FF,route_parent=0xC6A4F3FF,route_send=0xF2C43DFF,route_receive=0xEA5264FF}
-local light_defaults={window=0xE3E5E8FF,panel=0xF2F3F5FF,frame=0xD8DBDFFF,text=0x202327FF,border=0xA9AFB6FF}
+local light_defaults={window=0xE3E7EDFF,panel=0xF6F7FAFF,frame=0xE5E8EEFF,text=0x252B36FF,border=0xA2AAB8FF,
+  accent=0x62458FFF,gold=0x87600FFF,meter=0x7859C9FF,
+  route_parent=0x62458FFF,route_send=0x87600FFF,route_receive=0xAF344BFF}
 local keys={'window','panel','frame','text','accent','gold','meter','border','route_parent','route_send','route_receive'}
 local labels={window='Window Background',panel='Panel Background',frame='Control Surface',text='Normal Text',accent='Accent / Negative Width',gold='Width / Send Accent',meter='Meter',border='Borders',route_parent='Parent Routing / Accent',route_send='Send Routing / Yellow',route_receive='Receive Routing / Red'}
 M.colors={}
@@ -42,14 +44,36 @@ function M.heading_colors()
   local background=blend(c.frame or defaults.frame,accent,.12)
   return ensure_contrast(accent,background,100),background,blend(background,accent,.16)
 end
+-- Selection is a tint and outline, keeping thumbnail art and labels readable.
+-- Border colors are strokes, never hover fills: imported borders may be dark.
+function M.tile_colors(selected,hovered)
+  local c=M.colors
+  local background=c.frame or defaults.frame
+  local accent=c.accent or defaults.accent
+  if selected or hovered then background=blend(background,accent,selected and .16 or .08) end
+  return background,ensure_contrast(c.text or defaults.text,background,112),
+    selected and accent or (c.border or defaults.border)
+end
+function M.slot_border()
+  return blend(M.colors.frame or defaults.frame,M.colors.border or defaults.border,.35)
+end
 local function guard_light_palette(c)
   if not M.is_light then return false end
   local changed=false
+  -- Native light themes can import mid-grey surfaces. Lift those surfaces
+  -- while retaining their hue, so controls do not read as disabled blocks.
+  for _,role in ipairs({{'window',224},{'panel',242},{'frame',218}}) do
+    local key,minimum=role[1],role[2]
+    if luminance(c[key])<minimum then
+      local amount=(minimum-luminance(c[key]))/(255-luminance(c[key]))
+      c[key]=blend(c[key],0xFFFFFFFF,amount);changed=true
+    end
+  end
   local function guard(key,min_gap)
     local adjusted=ensure_contrast(c[key],c.panel or c.window,min_gap)
     if adjusted~=c[key] then c[key]=adjusted;changed=true end
   end
-  guard('text',112);guard('frame',28);guard('border',46)
+  guard('text',112);guard('border',46)
   guard('accent',110);guard('gold',110);guard('meter',65)
   guard('route_parent',110);guard('route_send',110);guard('route_receive',110)
   -- Accents also appear on controls, whose backgrounds are darker than the panel.
@@ -240,6 +264,16 @@ function M.apply(ctx)
   push(ctx,C('HeaderHovered'),blend(c.frame,c.text,.16));push(ctx,C('Separator'),c.border);push(ctx,C('Border'),c.border);push(ctx,C('Text'),c.text)
   push(ctx,C('TextDisabled'),M.is_light and blend(c.text,c.panel,.36) or blend(c.text,c.window,.52))
   M.count=14
+  -- ImGui's default dark palette otherwise leaks through custom light themes.
+  local extra={PopupBg=c.panel,HeaderActive=blend(c.frame,c.accent,.22),
+    CheckMark=c.accent,SliderGrab=c.accent,SliderGrabActive=c.accent,
+    ScrollbarBg=c.window,ScrollbarGrab=c.border,
+    ScrollbarGrabHovered=blend(c.border,c.text,.18),ScrollbarGrabActive=blend(c.border,c.text,.30),
+    TextSelectedBg=blend(c.panel,c.accent,.25),SeparatorHovered=c.accent,SeparatorActive=c.accent}
+  for name,value in pairs(extra) do
+    local id=C(name)
+    if id then push(ctx,id,value);M.count=M.count+1 end
+  end
   M.vars=0
   if reaper.ImGui_PushStyleVar then
     local sv=reaper.ImGui_StyleVar_ScrollbarSize

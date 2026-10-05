@@ -120,7 +120,12 @@ local function draw_tile(ctx,entry,width,height,selected)
     local dl=reaper.ImGui_GetWindowDrawList(ctx)
     local colors=theme.colors
     local background=selected and colors.accent or (hovered and colors.border or colors.frame)
+    local ink,outline=colors.text,colors.border
+    if theme.tile_colors then background,ink,outline=theme.tile_colors(selected,hovered) end
     reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+width,y+height,background or 0x30343AFF,4)
+    if reaper.ImGui_DrawList_AddRect and (selected or hovered) then
+      reaper.ImGui_DrawList_AddRect(dl,x+1,y+1,x+width-1,y+height-1,outline or 0xC6A4F3FF,4,0,selected and 2 or 1)
+    end
     local image,iw,ih=thumbnail(entry.path)
     local image_height=height-25
     if image then
@@ -130,11 +135,11 @@ local function draw_tile(ctx,entry,width,height,selected)
     else
       local label='No preview'
       local tw=reaper.ImGui_CalcTextSize(ctx,label)
-      reaper.ImGui_DrawList_AddText(dl,x+(width-tw)/2,y+image_height/2-7,colors.text or 0xFFFFFFFF,label)
+      reaper.ImGui_DrawList_AddText(dl,x+(width-tw)/2,y+image_height/2-7,ink or 0xFFFFFFFF,label)
     end
     local label=fit(ctx,entry.name:gsub('%.[^.]+$',''),width-10)
     local tw=reaper.ImGui_CalcTextSize(ctx,label)
-    reaper.ImGui_DrawList_AddText(dl,x+(width-tw)/2,y+height-20,colors.text or 0xFFFFFFFF,label)
+    reaper.ImGui_DrawList_AddText(dl,x+(width-tw)/2,y+height-20,ink or 0xFFFFFFFF,label)
   end
   tooltip(ctx,entry.relative..(selected and '\nCurrent track icon' or '\nClick to use this icon'))
   -- A thumbnail is a browsing target: its wheel scrolls the grid and never

@@ -54,7 +54,7 @@ local function small_button(ctx, label, active, on, w, compact, on_set)
   local held=reaper.ImGui_IsItemActive and reaper.ImGui_IsItemActive(ctx)
   local active_color=kind=='M' and 0xA54D5BFF or (kind=='S' and 0xB89B55FF or 0x666B6CFF)
   local fill=active and active_color or (held and 0x686B6EFF or (hovered and 0x55585BFF or 0x3D4043FF))
-  if theme.is_light and not active then fill=held and 0xA8ADB4FF or (hovered and 0xBEC3CAFF or theme.colors.frame) end
+  if theme.is_light and not active then fill=held and 0xC4B4DEFF or (hovered and 0xDED5EDFF or theme.colors.frame) end
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
   reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+1,x+width-1,y+height-1,(theme.is_light and theme.colors.border or 0x191B1DFF),2)
   reaper.ImGui_DrawList_AddRectFilled(dl,x+2,y+2,x+width-2,y+height-2,fill,1)
@@ -197,6 +197,7 @@ local function automation_button(ctx, mode, on_click, compact, on_change)
   local bright=hit or held or seconds() < (M.automation_flash_until or 0)
   if dl and reaper.ImGui_DrawList_AddLine and reaper.ImGui_DrawList_AddCircleFilled then
     local ink=bright and 0xF4F7F7FF or (hovered and 0xD3D7D8FF or 0xAFB4B7FF)
+    if theme.is_light and not bright then ink=hovered and theme.colors.accent or 0x606977FF end
     if bright and reaper.ImGui_DrawList_AddRectFilled then
       reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+1,x+w-1,y+h-1,0x555A5CFF,4)
     end
@@ -225,6 +226,7 @@ local function phase_button(ctx, active, on_click, compact)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
   local col=active and 0xF5B35AFF or 0xB9BDC0FF
+  if theme.is_light then col=active and theme.colors.gold or 0x606977FF end
   if dl and reaper.ImGui_DrawList_AddCircle then
     local cx,cy=x+w/2,y+h/2
     reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,(compact and 9 or 11)*u,(theme.is_light and theme.colors.frame or 0x303337FF),CIRCLE_SEGMENTS)
@@ -389,7 +391,10 @@ local function arm_button(ctx, track, active, automatic, on_click)
   local dl = reaper.ImGui_GetWindowDrawList(ctx)
   if dl and reaper.ImGui_DrawList_AddCircleFilled then
     local cx,cy=x+13*u,y+13*u
-    reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,13*u,(theme.is_light and theme.colors.frame or (theme.is_light and theme.colors.frame or 0x25282BFF)),CIRCLE_SEGMENTS)
+    reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,13*u,(theme.is_light and theme.colors.frame or 0x25282BFF),CIRCLE_SEGMENTS)
+    if theme.is_light and reaper.ImGui_DrawList_AddCircle then
+      reaper.ImGui_DrawList_AddCircle(dl,cx,cy,12*u,theme.colors.border,CIRCLE_SEGMENTS,u)
+    end
     if automatic then
       -- Auto-arm mode stays identifiable while disarmed, but only lights red
       -- when REAPER currently has the selected track armed.
@@ -403,8 +408,8 @@ local function arm_button(ctx, track, active, automatic, on_click)
     elseif active then
       if reaper.ImGui_DrawList_AddCircle then reaper.ImGui_DrawList_AddCircle(dl,cx,cy,10*u,0xEA4A5FFF,CIRCLE_SEGMENTS,3*u) end
     elseif reaper.ImGui_DrawList_AddCircle then
-      reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,10*u,0xA3A8AAFF,CIRCLE_SEGMENTS)
-      reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,5*u,(theme.is_light and theme.colors.frame or (theme.is_light and theme.colors.frame or 0x25282BFF)),CIRCLE_SEGMENTS)
+      reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,10*u,theme.is_light and 0x606977FF or 0xA3A8AAFF,CIRCLE_SEGMENTS)
+      reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,5*u,(theme.is_light and theme.colors.frame or 0x25282BFF),CIRCLE_SEGMENTS)
     end
   end
   if reaper.ImGui_InvisibleButton then
@@ -443,6 +448,7 @@ local function monitor_button(ctx, mode, on_click, width, compact, track)
   local w,h=compact_px(width or 30,compact),compact_px(compact and 20 or 22,compact)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx); local dl=reaper.ImGui_GetWindowDrawList(ctx)
   local active=mode~=0; local col=active and (mode==2 and 0xE0B64DFF or 0xD5D8DAFF) or 0x697076FF
+  if theme.is_light then col=active and (mode==2 and theme.colors.gold or theme.colors.accent) or 0x697076FF end
   if dl and reaper.ImGui_DrawList_AddLine then
     local cx=x+w/2
     reaper.ImGui_DrawList_AddCircleFilled(dl,cx,y+3*u,1.4*u,col,24)

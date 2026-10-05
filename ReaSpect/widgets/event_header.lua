@@ -47,7 +47,6 @@ function M.draw(ctx,opts)
   color.strip(ctx,'##event_color_'..opts.id,opts.color,13,height,opts.on_color,nil,'Event color — click to change')
   local left,right=x+13,x+40
   reaper.ImGui_DrawList_AddRectFilled(dl,left,y,right,y+height,theme.colors.panel)
-  for _,edge in ipairs({left,right}) do reaper.ImGui_DrawList_AddLine(dl,edge,y+4,edge,y+height-4,theme.colors.border,1) end
   local badge=fit(ctx,opts.badge,25)
   local bw,bh=reaper.ImGui_CalcTextSize(ctx,badge)
   reaper.ImGui_DrawList_AddText(dl,left+(27-bw)/2,y+(height-bh)/2,theme.colors.text,badge)

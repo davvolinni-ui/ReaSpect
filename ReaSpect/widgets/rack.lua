@@ -28,7 +28,10 @@ local C = {
   active=0x56504CFF, text=0xEAE3DBFF, muted=0xAAA09CFF,
   line=0x755562FF, gold=0xE5B84DFF, white=0xE0E2DFFF,
   violet=0xBD9BE9FF, shadow=0x211E20FF,
+  send_header=0x2D3236FF,send_hover=0x494146FF,send_muted=0x302D30FF,
 }
+local dark_rack = {}
+for key,value in pairs(C) do dark_rack[key]=value end
 local MIN_SEND_SLOTS=4
 local FX_ROW_HEIGHT,FX_TOGGLE_WIDTH=23,16
 local RACK_GUTTER,RACK_DIVIDER_HEIGHT=8,7
@@ -38,6 +41,16 @@ local function sync_theme()
   C.bg=c.panel;C.header=c.frame;C.text=c.text
   C.gold=c.gold;C.violet=c.accent
   C.heading=theme.heading_colors and theme.heading_colors() or C.violet
+  -- Every custom-drawn rack surface must use the same light/dark palette.
+  for _,key in ipairs({'well','active','muted','line','white','shadow'}) do C[key]=dark_rack[key] end
+  C.send_header=0x2D3236FF;C.send_hover=0x494146FF;C.send_muted=0x302D30FF
+  if theme.is_light then
+    C.well=c.frame;C.active=c.border;C.muted=c.text
+    C.line=c.border;C.shadow=0x26304026
+    C.send_header=c.frame;C.send_hover=c.border;C.send_muted=c.frame
+    if theme.tile_colors then C.send_hover=theme.tile_colors(false,true) end
+    C.muted=0x606977FF
+  end
 end
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
@@ -918,6 +931,7 @@ local function fx_toggle_button(ctx,track,state,fx,index,width)
   if hovered then reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+1,x+width-1,y+22,0xFFFFFF12,3) end
   local enabled=fx and fx.enabled or false
   local marker=enabled and C.violet or (fx and 0x777174FF or 0x5B5559FF)
+  if theme.is_light and not enabled then marker=fx and C.muted or theme.colors.border end
   reaper.ImGui_DrawList_AddRectFilled(dl,x+math.floor(width/2)-2,y+5,x+math.floor(width/2)+2,y+18,marker,2)
   if fx then
     local wheeled,next_enabled=controls.toggle(ctx,fx.enabled)
@@ -1054,8 +1068,11 @@ end
 local function fx_row_surface(dl,x,y,width,label_width)
   reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+width,y+FX_ROW_HEIGHT+2,C.shadow,5)
   reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+width,y+FX_ROW_HEIGHT,C.header,5)
+  if theme.is_light and reaper.ImGui_DrawList_AddRect then
+    reaper.ImGui_DrawList_AddRect(dl,x,y,x+width,y+FX_ROW_HEIGHT,theme.slot_border(),5,0,1)
+  end
   reaper.ImGui_DrawList_AddLine(dl,x+4,y+1,x+width-4,y+1,0xBEB4AF24,1)
-  reaper.ImGui_DrawList_AddLine(dl,x+label_width,y+4,x+label_width,y+FX_ROW_HEIGHT-4,0x211F20AA,1)
+  reaper.ImGui_DrawList_AddLine(dl,x+label_width,y+4,x+label_width,y+FX_ROW_HEIGHT-4,theme.is_light and theme.slot_border() or 0x211F20AA,1)
 end
 
 local function fx_row(ctx,track,state,fx,index,visual_slot)
@@ -1247,7 +1264,7 @@ local function send_row(ctx,track,state,send,visual_slot)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
   reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+avail,y+27,C.shadow,5)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+avail,y+25,send.mute and 0x302D30FF or C.well,5)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+avail,y+25,send.mute and C.send_muted or C.well,5)
   reaper.ImGui_DrawList_AddLine(dl,x+4,y+1,x+avail-4,y+1,0xBEB4AF24,1)
   local title_w=math.max(20,avail-30)
   row_text(ctx,dl,x+6,y,math.max(0,title_w-10),25,send.mute and C.muted or C.gold,label)
@@ -1418,8 +1435,8 @@ local function send_header(ctx,track,available_width)
   local route_right=reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1)
   tooltip(ctx,'Click to open REAPER routing; right-click for REAPER’s native routing menu')
   reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+body,y+24,C.shadow,4)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+body,y+22,0x2D3236FF,4)
-  if route_hover then reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+body,y+22,0x566069AA,4) end
+  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+body,y+22,C.send_header,4)
+  if route_hover then reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+body,y+22,theme.is_light and C.send_hover or 0x566069AA,4) end
   row_text(ctx,dl,x+8,y,math.max(0,body-12),22,C.heading or C.violet,'SENDS','heading')
   if route_hit then api.show_routing(track) end
   if route_right then api.show_native_track_menu('track_routing',track) end
@@ -1430,7 +1447,7 @@ local function send_header(ctx,track,available_width)
   local add_hover=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
   reaper.ImGui_DrawList_AddRectFilled(dl,ax+1,ay+2,ax+add_w,ay+24,C.shadow,4)
   reaper.ImGui_DrawList_AddRectFilled(dl,ax,ay,ax+add_w,ay+22,
-    add_hover and 0x4B454AFF or 0x2D3236FF,4)
+    add_hover and (theme.is_light and C.send_hover or 0x4B454AFF) or C.send_header,4)
   reaper.ImGui_DrawList_AddLine(dl,ax+add_w/2-4,ay+11,ax+add_w/2+4,ay+11,C.violet,1.8)
   reaper.ImGui_DrawList_AddLine(dl,ax+add_w/2,ay+7,ax+add_w/2,ay+15,C.violet,1.8)
   tooltip(ctx,'Add a send to another track')
@@ -1445,7 +1462,10 @@ local function send_empty_row(ctx,track,slot,reserved)
   local hit=reaper.ImGui_InvisibleButton(ctx,'##send_empty_add'..tostring(slot or 1),avail,25)
   local hovered=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
   reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+avail,y+27,C.shadow,5)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+avail,y+25,hovered and 0x494146FF or C.well,5)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+avail,y+25,hovered and C.send_hover or C.well,5)
+  if theme.is_light and reaper.ImGui_DrawList_AddRect then
+    reaper.ImGui_DrawList_AddRect(dl,x,y,x+avail,y+25,theme.slot_border(),5,0,1)
+  end
   reaper.ImGui_DrawList_AddLine(dl,x+1,y+1,x+avail-1,y+1,0xBEB4AF24,1)
   if initial_add then
     reaper.ImGui_DrawList_AddLine(dl,x+13,y+12.5,x+21,y+12.5,C.violet,1.7)
