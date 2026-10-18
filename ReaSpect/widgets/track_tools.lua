@@ -82,14 +82,7 @@ function M.header_icon(ctx,track,width,height,kind,draw_fallback)
   local path=icon_path(track)
   if ready and path~='' and controls.right_click(ctx) then actions.queue('icon_remove',{track}) end
   if not ready then reaper.ImGui_EndDisabled(ctx) end
-  local types={audio='Audio items',midi='MIDI items',mixed='Audio and MIDI items',empty='No media items'}
-  local tip=path~='' and ('Track icon: '..basename(path)) or 'Track icon'
-  tip=tip..'\n'..(types[kind] or 'Track contents')
-  if ready then
-    tip=tip..'\nClick: browse icons'
-    if path~='' then tip=tip..'  •  Right-click: remove icon' end
-  end
-  prop.tooltip(ctx,tip)
+  prop.tooltip(ctx,'Track icon')
   return ready and clicked
 end
 

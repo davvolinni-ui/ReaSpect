@@ -8,6 +8,25 @@ function M.scroll_flags(flags)
   return (flags or 0) | reaper.ImGui_WindowFlags_NoScrollWithMouse()
 end
 
+-- Popups claim wheel input even at a scroll boundary. Focus the hovered
+-- popup/child, never the inspector behind it. Native popup scrolling can use
+-- this alone; NoScrollWithMouse lists request explicit scrolling below.
+function M.capture_popup_wheel(ctx)
+  if not reaper.ImGui_IsWindowHovered(ctx) then return 0 end
+  wheel_claimed[tostring(ctx)]=true
+  local delta=reaper.ImGui_GetMouseWheel(ctx) or 0
+  if delta~=0 and reaper.ImGui_SetWindowFocus then reaper.ImGui_SetWindowFocus(ctx) end
+  return delta
+end
+
+function M.popup_scroll_end(ctx)
+  local delta=M.capture_popup_wheel(ctx)
+  if delta==0 then return end
+  local maximum=reaper.ImGui_GetScrollMaxY(ctx)
+  reaper.ImGui_SetScrollY(ctx,math.max(0,math.min(maximum,
+    reaper.ImGui_GetScrollY(ctx)-delta*reaper.ImGui_GetTextLineHeightWithSpacing(ctx)*3)))
+end
+
 -- ReaImGui does not expose SetItemKeyOwner. Native window scrolling happens
 -- before widgets run, so undoing it after a wheel edit is a frame too late.
 -- Our scroll regions disable native wheel scrolling and route it once, after

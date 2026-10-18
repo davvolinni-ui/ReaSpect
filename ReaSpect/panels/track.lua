@@ -12,6 +12,8 @@ local panel_body = require('ReaSpect.widgets.panel_body')
 local track_tools = require('ReaSpect.widgets.track_tools')
 local icon_browser = require('ReaSpect.widgets.icon_browser')
 local track_notes = require('ReaSpect.widgets.track_notes')
+local auto_colors = require('ReaSpect.core.auto_colors')
+local auto_colors_menu = require('ReaSpect.widgets.auto_colors')
 local M = {rename=nil}
 
 local timebases = {'Project default','Time','Beats (pos/len/rate)','Beats (position only)'}
@@ -391,8 +393,15 @@ function M.draw(ctx, state)
   reaper.ImGui_DrawList_AddRectFilled(dl,hx,hy,hx+hw,hy+header_h,theme.colors.frame or 0x292D31FF,2)
   local strip_w=13
   color.strip(ctx,'##trackcolor_'..tostring(t),api.track.color(t),13,27,function(c)
-    edit(state,'Set track color',api.track.set_color,c)
-  end)
+    edit(state,'Set track color',function(track,value)
+      auto_colors.protect(track)
+      api.track.set_color(track,value)
+    end,c)
+  end,nil,'Track color',function()
+    auto_colors_menu.menu(ctx,t,function()
+      undo.edit('Reset track color',function() auto_colors.protect(t);api.track.set_color(t,0);reaper.UpdateArrange() end)
+    end,state.selected_tracks)
+  end,auto_colors.manual_palette(auto_colors.config()))
   local number_left=hx+strip_w
   local number_right=hx+40
   reaper.ImGui_DrawList_AddRectFilled(dl,number_left,hy,number_right,hy+header_h,theme.colors.panel or 0x1D2024FF)
@@ -403,8 +412,9 @@ function M.draw(ctx, state)
   reaper.ImGui_DrawList_AddText(dl,number_left+(number_right-number_left-number_w)*0.5,hy+(header_h-number_h)*0.5,theme.colors.text or 0xD4D7DBFF,number_text)
 
   local icon_x=hx+hw-23
+  local is_folder=reaper.GetMediaTrackInfo_Value(t,'I_FOLDERDEPTH')>0
   local name_x=number_right+5
-  local name_w=math.max(1,icon_x-name_x-4)
+  local name_w=math.max(1,icon_x-name_x-4-(is_folder and 24 or 0))
   if M.rename and M.rename.track~=t then M.rename=nil end
   if M.rename and M.rename.track==t then
     local rename=M.rename
@@ -451,6 +461,10 @@ function M.draw(ctx, state)
     local shown=fit_header_text(ctx,name,math.max(0,name_w-8))
     local text_h=header_text_height(ctx,shown)
     reaper.ImGui_DrawList_AddText(dl,name_x+4,hy+(header_h-text_h)*0.5,theme.colors.text or 0xD4D7DBFF,shown)
+  end
+  if is_folder then
+    reaper.ImGui_SetCursorScreenPos(ctx,icon_x-24,hy+2)
+    auto_colors_menu.folder_control(ctx,t)
   end
   reaper.ImGui_SetCursorScreenPos(ctx,icon_x,hy+2)
   local media_kind=track_media_kind(t)

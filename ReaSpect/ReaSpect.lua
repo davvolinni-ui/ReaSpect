@@ -1,13 +1,13 @@
 -- @description ReaSpect - context-sensitive inspector
--- @version 0.1.2-test
+-- @version 0.1.3-test
 -- @author Davvo
 -- @link https://forum.cockos.com/showthread.php?t=311132
 -- @about Testing release. Requires REAPER 6.8+ and ReaImGui. Read EULA.md before use.
 -- @changelog
---   Improve light-theme surfaces, FX/Sends slots, popups and selection contrast.
---   Make recording, monitoring, polarity and automation controls readable in light mode.
---   Keep icon-picker previews and labels readable when hovered or selected.
---   Remove decorative vertical separators from track and event headers.
+--   Add automatic track colors, musical roles, role icons and editable family palettes.
+--   Expand instrument-name matching and preserve manual role and color overrides.
+--   Use continuous folder gradients and bounded, stable subrole shades.
+--   Improve color menus, selection behavior, Channel layouts and native controls.
 -- @metapackage
 -- @provides
 --   [main] ../ReaSpect.lua > ReaSpect.lua

@@ -4,8 +4,44 @@ local theme=require('ReaSpect.core.theme')
 local M={}
 local POPUP='##track_icon_browser'
 local catalog,request
+local drawing_picker=false
 local images,owners={},{}
 local MAX_FILES,MAX_DIRECTORIES,MAX_DEPTH=4096,256,6
+local search_aliases={
+  vocal={'mic','speech','male','female'},vocals={'mic','speech','male','female'},vox={'mic','speech'},voice={'mic','speech'},
+  drums={'drum','kick','snare','tom','hihat','cymbal','overhead'},drum={'drum','kick','snare','tom','hihat','cymbal','overhead'},
+  snare={'snare'},hat={'hihat'},hats={'hihat'},hihat={'hihat'},cymbals={'cymbal','ride'},
+  bass={'bass'},gtr={'guitar'},guitar={'guitar'},acoustic={'ac_guitar','acoustic'},
+  keys={'piano','organ','synth'},keyboard={'piano','organ','synth'},ep={'piano'},rhodes={'piano'},
+  strings={'violin','cello','double_bass'},brass={'trumpet','trombone'},woodwinds={'sax','harmonica'},
+  bus={'mixer','group','folder'},buses={'mixer','group','folder'},['return']={'reverb','fx'},returns={'reverb','fx'},
+  reference={'phones','tape'},ref={'phones','tape'},percussion={'conga','bongo','tamb','maraca','cowbell','cabasa'},
+  fx={'fx','reverb','pedal'},
+  ['808']={'synthbass','bass','beats'},readrumxt={'drum','kick','snare','tom','hihat','cymbal'},
+  harmony={'mic','speech'},harmonies={'mic','speech'},doubles={'mic','speech'},choir={'mic','speech'},
+}
+local search_phrases={['drum bus']='drums',['drum buss']='drums',['drum rack']='drums',
+  ['rea drum xt']='drums',['readrum xt']='drums',['bass guitar']='bass',['electric guitar']='guitar',
+  ['acoustic guitar']='acoustic',['lead guitar']='guitar',['electric piano']='piano',['drum room']='room',
+  ['fx return']='returns',['fx returns']='returns',['sound design']='fx',['hi hat']='hihat'}
+local ignored_search_words={lead=true,backing=true,main=true,track=true,icon=true,icons=true,hi=true}
+function M.matches(entry,query)
+  local name=(entry.search or entry.relative or entry.name or ''):lower()
+  query=(query or ''):lower()
+  if query=='' or name:find(query,1,true) then return true end
+  local phrase=query:gsub('[_%-]',' '):gsub('%s+',' '):match('^%s*(.-)%s*$')
+  query=search_phrases[phrase] or query
+  local meaningful=false
+  for word in query:gmatch('[%w_]+') do
+    if not ignored_search_words[word] then
+      meaningful=true
+      local found=false
+      for _,alias in ipairs(search_aliases[word] or {word}) do if name:find(alias,1,true) then found=true;break end end
+      if not found then return false end
+    end
+  end
+  return meaningful
+end
 
 local function normalize(path) return ((path or ''):gsub('\\','/'):gsub('/+$','')) end
 local function root_path()
@@ -51,8 +87,16 @@ local function scan(root)
 end
 
 local function current_project() return reaper.EnumProjects and reaper.EnumProjects(-1,'') end
+local function current_project_key()
+  local proj,path=reaper.EnumProjects(-1,'')
+  return tostring(proj)..'\31'..(path or '')..'\31'..(reaper.GetProjectGUID and reaper.GetProjectGUID(proj) or '')
+end
 local function identity(track) return reaper.GetTrackGUID and reaper.GetTrackGUID(track) or tostring(track) end
 local function valid(track)
+  if request and request.project_key~=current_project_key() then return false end
+  if request and request.on_pick then
+    return current_project()==request.project and (not request.is_valid or request.is_valid())
+  end
   return request and request.track==track and current_project()==request.project
     and reaper.ValidatePtr2 and reaper.ValidatePtr2(request.project,track,'MediaTrack*')
     and identity(track)==request.guid
@@ -95,6 +139,11 @@ end
 
 local function queue(ctx,name,path)
   if not valid(request and request.track) then return false end
+  if request.on_pick then
+    request.on_pick(name=='icon_remove' and '' or path)
+    reaper.ImGui_CloseCurrentPopup(ctx)
+    return true
+  end
   if actions.queue(name,{request.track},path) then
     reaper.ImGui_CloseCurrentPopup(ctx)
     return true
@@ -106,7 +155,13 @@ function M.open(ctx,track)
   local project=current_project()
   if not project or not track or not reaper.ValidatePtr2 or not reaper.ValidatePtr2(project,track,'MediaTrack*')
     or (reaper.GetMasterTrack and track==reaper.GetMasterTrack(project)) then return false end
-  request={ctx=ctx,track=track,project=project,guid=identity(track),search='',focus=true,reset_scroll=true}
+  request={ctx=ctx,track=track,project=project,project_key=current_project_key(),guid=identity(track),search='',focus=true,reset_scroll=true}
+  reaper.ImGui_OpenPopup(ctx,POPUP)
+  return true
+end
+function M.open_picker(ctx,opts)
+  request={ctx=ctx,project=current_project(),project_key=current_project_key(),on_pick=opts.on_pick,is_valid=opts.is_valid,
+    current=opts.current or '',search=opts.search or '',focus=true,reset_scroll=true}
   reaper.ImGui_OpenPopup(ctx,POPUP)
   return true
 end
@@ -149,6 +204,7 @@ end
 
 function M.draw(ctx,track)
   if not request or request.ctx~=ctx then return end
+  if request.on_pick and not drawing_picker then return end
   -- BeginPopup normally auto-sizes. An unconditional size prevents fill-width
   -- controls and a remaining-height grid from shrinking that popup each frame.
   reaper.ImGui_SetNextWindowSize(ctx,340,360)
@@ -170,12 +226,15 @@ function M.draw(ctx,track)
   local closed=false
   if reaper.ImGui_Button(ctx,'None##icon_none') then closed=queue(ctx,'icon_remove') end
   tooltip(ctx,'Remove the focused track\'s custom icon.')
-  reaper.ImGui_SameLine(ctx)
-  if reaper.ImGui_Button(ctx,'Browse files...##icon_browse') then closed=queue(ctx,'icon_choose') or closed end
-  tooltip(ctx,'Open REAPER\'s icon browser for files outside this library.')
+  if not request.on_pick then
+    reaper.ImGui_SameLine(ctx)
+    if reaper.ImGui_Button(ctx,'Browse files...##icon_browse') then closed=queue(ctx,'icon_choose') or closed end
+    tooltip(ctx,'Open REAPER\'s icon browser for files outside this library.')
+  end
   reaper.ImGui_SameLine(ctx)
   if reaper.ImGui_Button(ctx,'Reload##icon_reload') then
     catalog=scan(root);images,owners={},{};request.reset_scroll=true
+    require('ReaSpect.core.role_icons').reload()
   end
   if not closed then
     if not safe_images() then
@@ -186,7 +245,7 @@ function M.draw(ctx,track)
       local needle=request.search:lower()
       local matches={}
       for _,entry in ipairs(catalog.entries) do
-        if needle=='' or entry.search:find(needle,1,true) then matches[#matches+1]=entry end
+        if M.matches(entry,needle) then matches[#matches+1]=entry end
       end
       reaper.ImGui_TextDisabled(ctx,#matches..' icon'..(#matches==1 and '' or 's')..(catalog.limited and ' · library limit reached' or ''))
       local _,height=reaper.ImGui_GetContentRegionAvail(ctx)
@@ -195,8 +254,8 @@ function M.draw(ctx,track)
         local width=reaper.ImGui_GetContentRegionAvail(ctx)
         local columns=math.max(1,math.floor((width+4)/92))
         local tile_width=(width-(columns-1)*4)/columns
-        local assigned=''
-        if reaper.GetSetMediaTrackInfo_String then
+        local assigned=normalize(request.current or '')
+        if not request.on_pick and reaper.GetSetMediaTrackInfo_String then
           local ok,path=reaper.GetSetMediaTrackInfo_String(track,'P_ICON','',false)
           if ok then assigned=normalize(path) end
         end
@@ -213,6 +272,25 @@ function M.draw(ctx,track)
   end
   reaper.ImGui_EndPopup(ctx)
   if closed then request=nil end
+end
+function M.draw_picker(ctx)
+  if not request or not request.on_pick then return end
+  drawing_picker=true
+  M.draw(ctx,nil)
+  drawing_picker=false
+end
+function M.preview_icon(ctx,path,size)
+  size=size or 20
+  local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
+  reaper.ImGui_Dummy(ctx,size,size)
+  if not path or path=='' then return end
+  local image,iw,ih=thumbnail(path)
+  if image then
+    local scale=math.min(size/iw,size/ih)
+    reaper.ImGui_DrawList_AddImage(reaper.ImGui_GetWindowDrawList(ctx),image,
+      x+(size-iw*scale)/2,y+(size-ih*scale)/2,x+(size+iw*scale)/2,y+(size+ih*scale)/2)
+  end
+  if path~='' and reaper.ImGui_IsItemHovered(ctx) then reaper.ImGui_SetTooltip(ctx,path) end
 end
 
 return M

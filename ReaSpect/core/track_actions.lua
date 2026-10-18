@@ -131,10 +131,15 @@ local function perform(request)
   if request.name=='icon_set' then
     local track=request.targets[1]
     local _,current=reaper.GetSetMediaTrackInfo_String(track,'P_ICON','',false)
-    if current==request.value then return end
+    local _,mode=reaper.GetSetMediaTrackInfo_String(track,'P_EXT:ReaSpect.AutoColors.icon_mode','',false)
+    if current==request.value and mode=='keep' then return end
     require('ReaSpect.core.undo').edit('Set track icon',function()
-      local changed=reaper.GetSetMediaTrackInfo_String(track,'P_ICON',request.value,true)
-      if not changed then error('Could not set the selected track icon') end
+      if current~=request.value then
+        local changed=reaper.GetSetMediaTrackInfo_String(track,'P_ICON',request.value,true)
+        if not changed then error('Could not set the selected track icon') end
+      end
+      reaper.GetSetMediaTrackInfo_String(track,'P_EXT:ReaSpect.AutoColors.icon_mode','keep',true)
+      reaper.GetSetMediaTrackInfo_String(track,'P_EXT:ReaSpect.AutoColors.last_icon','',true)
       if reaper.TrackList_AdjustWindows then reaper.TrackList_AdjustWindows(false) end
       if reaper.UpdateArrange then reaper.UpdateArrange() end
     end)
@@ -159,6 +164,12 @@ local function perform(request)
     -- The native action owns its undo entry. No UI suppression or script undo
     -- block is held across REAPER's potentially modal render operation.
     reaper.Main_OnCommandEx(request.command,0,project)
+    if request.name=='icon_remove' and reaper.GetSetMediaTrackInfo_String then
+      for _,track in ipairs(request.targets) do
+        reaper.GetSetMediaTrackInfo_String(track,'P_EXT:ReaSpect.AutoColors.icon_mode','keep',true)
+        reaper.GetSetMediaTrackInfo_String(track,'P_EXT:ReaSpect.AutoColors.last_icon','',true)
+      end
+    end
   end)
   if project_open(project) then
     each_project_track(project,function(track) reaper.SetTrackSelected(track,false) end)

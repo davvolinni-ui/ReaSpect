@@ -18,6 +18,7 @@ local fx_parameters = require('ReaSpect.widgets.fx_parameters')
 local track_notes = require('ReaSpect.widgets.track_notes')
 local native_ui = require('ReaSpect.core.native_ui')
 local diagnostics = require('ReaSpect.core.diagnostics')
+local auto_colors = require('ReaSpect.core.auto_colors')
 
 if not reaper.ImGui_CreateContext then
   reaper.ShowMessageBox('ReaSpect requires the ReaImGui extension.', 'ReaSpect', 0)
@@ -300,6 +301,8 @@ local function draw_frame()
   if reaper.ImGui_IsMouseDown and not reaper.ImGui_IsMouseDown(ctx,0)
       and (not reaper.ImGui_IsAnyItemActive or not reaper.ImGui_IsAnyItemActive(ctx)) then finish_edits() end
   theme.draw_editor(ctx)
+  local auto_editor=package.loaded['ReaSpect.widgets.auto_colors']
+  if auto_editor and auto_editor.draw_window then auto_editor.draw_window(ctx) end
   theme.pop(ctx)
   return open
 end
@@ -316,6 +319,7 @@ local function step()
   track_actions.process()
   fx_parameters.process()
   native_ui.process()
+  auto_colors.tick()
   return draw_frame()
 end
 
