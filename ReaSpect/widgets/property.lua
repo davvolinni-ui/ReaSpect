@@ -11,7 +11,7 @@ end
 function M.row(ctx, label, draw, opts)
   opts = opts or {}
   local avail = reaper.ImGui_GetContentRegionAvail and reaper.ImGui_GetContentRegionAvail(ctx) or 240
-  local lw = opts.label_width or math.min(112, math.max(78, avail*0.42))
+  local lw = opts.label_width and theme.px(opts.label_width) or math.min(theme.px(112), math.max(theme.px(78), avail*0.42))
   if reaper.ImGui_TextColored then
     local palette=theme.colors
     reaper.ImGui_TextColored(ctx,soften(palette.text or 0xD4D7DBFF,palette.panel or 0x1D2024FF),label)

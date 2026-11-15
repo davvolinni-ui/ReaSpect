@@ -42,16 +42,17 @@ function M.draw(ctx,opts)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
   -- Match the Track header: 27 high, 13 color strip, 27 identity cell,
   -- a five-pixel name inset, and the same 18-pixel media icon.
-  local height=27
+  local px=theme.px
+  local height=px(27)
   reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+width,y+height,theme.colors.frame,2)
-  color.strip(ctx,'##event_color_'..opts.id,opts.color,13,height,opts.on_color,nil,'Event color — click to change')
-  local left,right=x+13,x+40
+  color.strip(ctx,'##event_color_'..opts.id,opts.color,px(13),height,opts.on_color,nil,'Event color — click to change')
+  local left,right=x+px(13),x+px(40)
   reaper.ImGui_DrawList_AddRectFilled(dl,left,y,right,y+height,theme.colors.panel)
-  local badge=fit(ctx,opts.badge,25)
+  local badge=fit(ctx,opts.badge,px(25))
   local bw,bh=reaper.ImGui_CalcTextSize(ctx,badge)
-  reaper.ImGui_DrawList_AddText(dl,left+(27-bw)/2,y+(height-bh)/2,theme.colors.text,badge)
-  local nx,ix=right+5,x+width-23
-  local nw=math.max(1,ix-nx-4)
+  reaper.ImGui_DrawList_AddText(dl,left+(px(27)-bw)/2,y+(height-bh)/2,theme.colors.text,badge)
+  local nx,ix=right+px(5),x+width-px(23)
+  local nw=math.max(1,ix-nx-px(4))
   if rename and rename.id~=opts.id then rename=nil end
   reaper.ImGui_SetCursorScreenPos(ctx,nx,y+(rename and 2 or 0))
   if rename then
@@ -77,11 +78,11 @@ function M.draw(ctx,opts)
     reaper.ImGui_DrawList_AddText(dl,nx+4,y+(height-th)/2,theme.colors.text,title)
   end
   reaper.ImGui_SetCursorScreenPos(ctx,ix,y+2)
-  reaper.ImGui_Dummy(ctx,18,22)
+  reaper.ImGui_Dummy(ctx,px(18),px(22))
   icon(ctx,opts.kind,ix,y+2)
   if reaper.ImGui_IsItemHovered(ctx) then reaper.ImGui_SetTooltip(ctx,opts.caption) end
   reaper.ImGui_SetCursorScreenPos(ctx,x,y+height)
-  reaper.ImGui_Dummy(ctx,0,3)
+  reaper.ImGui_Dummy(ctx,0,px(3))
   if opts.show_caption then
     reaper.ImGui_TextDisabled(ctx,fit(ctx,opts.caption,width))
     if reaper.ImGui_IsItemHovered(ctx) then reaper.ImGui_SetTooltip(ctx,opts.caption) end

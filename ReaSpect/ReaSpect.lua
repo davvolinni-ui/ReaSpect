@@ -1,13 +1,14 @@
 -- @description ReaSpect - context-sensitive inspector
--- @version 0.1.3-test
+-- @version 0.1.4-test
 -- @author Davvo
 -- @link https://forum.cockos.com/showthread.php?t=311132
 -- @about Testing release. Requires REAPER 6.8+ and ReaImGui. Read EULA.md before use.
 -- @changelog
---   Add automatic track colors, musical roles, role icons and editable family palettes.
---   Expand instrument-name matching and preserve manual role and color overrides.
---   Use continuous folder gradients and bounded, stable subrole shades.
---   Improve color menus, selection behavior, Channel layouts and native controls.
+--   Fix an FX browser crash when grouping categories outside the alphabetic ranges.
+--   Add project Undo and Redo shortcuts while the inspector is focused.
+--   Drag an FX slot or the FX header to another track control panel to copy FX.
+--   Show the editable Folder role dropdown below Routing.
+--   Add GUI scale and font settings and refine narrow Channel layouts.
 -- @metapackage
 -- @provides
 --   [main] ../ReaSpect.lua > ReaSpect.lua

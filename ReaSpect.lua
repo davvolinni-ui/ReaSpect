@@ -35,6 +35,7 @@ if reaper.ImGui_CreateFont then
   local ok,font=pcall(reaper.ImGui_CreateFont,'Segoe UI',bold)
   if ok then brand_font=font end
 end
+local px=theme.px
 local running = true
 local dragging = nil
 local function flag(name) local f=reaper['ImGui_WindowFlags_'..name]; return f and f() or 0 end
@@ -59,35 +60,35 @@ local function panel_button(key)
   local active = state.panels[key]
   local palette=theme.colors
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
-  local hit=reaper.ImGui_InvisibleButton(ctx,'##panel_'..key,25,24)
+  local hit=reaper.ImGui_InvisibleButton(ctx,'##panel_'..key,px(25),px(24))
   local reverse=key=='channel' and reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1)
   local hovered=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+25,y+24,active and (theme.is_light and palette.frame or (palette.border or 0x4A525AFF)) or (hovered and (palette.frame or 0x373D43FF) or (palette.panel or 0x292C30FF)),3)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+px(25),y+px(24),active and (theme.is_light and palette.frame or (palette.border or 0x4A525AFF)) or (hovered and (palette.frame or 0x373D43FF) or (palette.panel or 0x292C30FF)),3)
   -- Borders are intentionally subdued; using them for inactive glyphs makes
   -- the toolbar icons nearly disappear. Normal text stays legible and adapts
   -- to both dark and light imported themes.
   local ink=active and (palette.accent or 0xC6A4F3FF) or (palette.text or 0xBFC4C8FF)
   if key=='track' then
     for i=0,2 do
-      local yy=y+6+i*6
-      reaper.ImGui_DrawList_AddLine(dl,x+5,yy,x+20,yy,ink,1)
-      reaper.ImGui_DrawList_AddCircleFilled(dl,x+8+i*4,yy,2,ink)
+      local yy=y+px(6+i*6)
+      reaper.ImGui_DrawList_AddLine(dl,x+px(5),yy,x+px(20),yy,ink,1)
+      reaper.ImGui_DrawList_AddCircleFilled(dl,x+px(8+i*4),yy,px(2),ink)
     end
   elseif key=='item' then
-    reaper.ImGui_DrawList_AddRect(dl,x+5,y+5,x+20,y+19,ink,2,0,1.4)
-    reaper.ImGui_DrawList_AddLine(dl,x+8,y+15,x+11,y+9,ink,1.4)
-    reaper.ImGui_DrawList_AddLine(dl,x+11,y+9,x+15,y+13,ink,1.4)
-    reaper.ImGui_DrawList_AddLine(dl,x+15,y+13,x+18,y+8,ink,1.4)
+    reaper.ImGui_DrawList_AddRect(dl,x+px(5),y+px(5),x+px(20),y+px(19),ink,2,0,1.4)
+    reaper.ImGui_DrawList_AddLine(dl,x+px(8),y+px(15),x+px(11),y+px(9),ink,1.4)
+    reaper.ImGui_DrawList_AddLine(dl,x+px(11),y+px(9),x+px(15),y+px(13),ink,1.4)
+    reaper.ImGui_DrawList_AddLine(dl,x+px(15),y+px(13),x+px(18),y+px(8),ink,1.4)
   elseif key=='channel' and active and state.channel_rack_only then
     for i=0,2 do
-      reaper.ImGui_DrawList_AddRect(dl,x+5,y+5+i*5,x+20,y+8+i*5,ink,1,0,1)
+      reaper.ImGui_DrawList_AddRect(dl,x+px(5),y+px(5+i*5),x+px(20),y+px(8+i*5),ink,1,0,1)
     end
   else
-    reaper.ImGui_DrawList_AddLine(dl,x+8,y+5,x+8,y+19,ink,1.4)
-    reaper.ImGui_DrawList_AddLine(dl,x+17,y+5,x+17,y+19,ink,1.4)
-    reaper.ImGui_DrawList_AddRectFilled(dl,x+5,y+9,x+11,y+13,ink,1)
-    reaper.ImGui_DrawList_AddRectFilled(dl,x+14,y+14,x+20,y+18,ink,1)
+    reaper.ImGui_DrawList_AddLine(dl,x+px(8),y+px(5),x+px(8),y+px(19),ink,1.4)
+    reaper.ImGui_DrawList_AddLine(dl,x+px(17),y+px(5),x+px(17),y+px(19),ink,1.4)
+    reaper.ImGui_DrawList_AddRectFilled(dl,x+px(5),y+px(9),x+px(11),y+px(13),ink,1)
+    reaper.ImGui_DrawList_AddRectFilled(dl,x+px(14),y+px(14),x+px(20),y+px(18),ink,1)
   end
   if reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_SetTooltip then
     local tips={track='Track / Context',item='Item / Event',channel='Channel'}
@@ -110,15 +111,15 @@ local function theme_button()
   local palette=theme.colors
   local active=theme.editor_open
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
-  local hit=reaper.ImGui_InvisibleButton(ctx,'##theme_editor_button',25,24)
+  local hit=reaper.ImGui_InvisibleButton(ctx,'##theme_editor_button',px(25),px(24))
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
   local hovered=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+25,y+24,(active or hovered) and (palette.frame or 0x373D43FF) or (palette.panel or 0x292C30FF),3)
-  reaper.ImGui_DrawList_AddCircle(dl,x+12,y+12,7,active and (palette.accent or 0xC6A4F3FF) or (palette.text or 0xD7D9DBFF),0,1.5)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+px(25),y+px(24),(active or hovered) and (palette.frame or 0x373D43FF) or (palette.panel or 0x292C30FF),3)
+  reaper.ImGui_DrawList_AddCircle(dl,x+px(12),y+px(12),px(7),active and (palette.accent or 0xC6A4F3FF) or (palette.text or 0xD7D9DBFF),0,1.5)
   for i=0,2 do
     local a=i*2.1
     local dots=active and {palette.accent or 0xC6A4F3FF} or {palette.gold or 0xE5B84DFF,palette.accent or 0xC6A4F3FF,palette.route_receive or 0xEA5264FF}
-    reaper.ImGui_DrawList_AddCircleFilled(dl,x+12+math.cos(a)*4,y+12+math.sin(a)*4,1.4,dots[active and 1 or i+1])
+    reaper.ImGui_DrawList_AddCircleFilled(dl,x+px(12)+math.cos(a)*px(4),y+px(12)+math.sin(a)*px(4),px(1.4),dots[active and 1 or i+1])
   end
   if hovered then reaper.ImGui_SetTooltip(ctx,'ReaSpect theme editor') end
   if hit then theme.editor_open=true end
@@ -159,23 +160,23 @@ end
 local function brand_wordmark()
   local available=reaper.ImGui_GetContentRegionAvail(ctx) or 280
   local _,row_y=reaper.ImGui_GetCursorScreenPos(ctx)
-  local compact=available<248
+  local compact=available<px(248)
   local font_size=(theme.font_sizes and theme.font_sizes.brand) or 16
-  local mark_size=available>=220 and (compact and 20 or 24) or nil
+  local mark_size=available>=px(220) and px(compact and 20 or 24) or nil
   if mark_size then
     brand_mark(mark_size)
-    reaper.ImGui_SameLine(ctx,0,compact and 5 or 8)
+    reaper.ImGui_SameLine(ctx,0,px(compact and 5 or 8))
   end
   local pushed=false
   if reaper.ImGui_PushFont then
-    pushed=pcall(reaper.ImGui_PushFont,ctx,brand_font,font_size)
+    pushed=pcall(reaper.ImGui_PushFont,ctx,brand_font,px(font_size))
   end
   if reaper.ImGui_CalcTextSize and reaper.ImGui_DrawList_AddText then
     local text_x=reaper.ImGui_GetCursorScreenPos(ctx)
     local rea_w,rea_h=reaper.ImGui_CalcTextSize(ctx,'Rea')
     local spect_w,spect_h=reaper.ImGui_CalcTextSize(ctx,'Spect')
     local text_h=math.max(rea_h or 0,spect_h or 0)
-    local row_h=mark_size or 24
+    local row_h=mark_size or px(24)
     local text_y=row_y+(row_h-text_h)*0.5
     local dl=reaper.ImGui_GetWindowDrawList(ctx)
     reaper.ImGui_DrawList_AddText(dl,text_x,text_y,brand_ink(),'Rea')
@@ -191,16 +192,16 @@ local function splitter(index, visible, available)
   if not reaper.ImGui_InvisibleButton then return end
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local region_w=reaper.ImGui_GetContentRegionAvail(ctx) or 0
-  reaper.ImGui_InvisibleButton(ctx,'##split'..index,-1,6)
+  reaper.ImGui_InvisibleButton(ctx,'##split'..index,-1,px(6))
   local active=reaper.ImGui_IsItemActive and reaper.ImGui_IsItemActive(ctx)
   local hovered=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
   if dl and reaper.ImGui_DrawList_AddRectFilled then
-    local handle_w,handle_h=34,4
+    local handle_w,handle_h=px(34),px(4)
     local hx=x+math.max(0,(region_w-handle_w)/2)
     local handle=active and 0xD9DDE0FF or (hovered and 0xC5CACDFF or 0xA6ADB1FF)
-    reaper.ImGui_DrawList_AddRectFilled(dl,hx+1,y+2,hx+handle_w+1,y+2+handle_h,0x111416AA,3)
-    reaper.ImGui_DrawList_AddRectFilled(dl,hx,y+1,hx+handle_w,y+1+handle_h,handle,3)
+    reaper.ImGui_DrawList_AddRectFilled(dl,hx+px(1),y+px(2),hx+handle_w+px(1),y+px(2)+handle_h,0x111416AA,3)
+    reaper.ImGui_DrawList_AddRectFilled(dl,hx,y+px(1),hx+handle_w,y+px(1)+handle_h,handle,3)
   end
   if hovered and reaper.ImGui_SetTooltip then reaper.ImGui_SetTooltip(ctx,'Drag to resize panels') end
   if active and reaper.ImGui_GetMouseDelta then
@@ -242,7 +243,7 @@ local function draw_frame()
   controls.begin_frame(ctx)
   -- Push theme colors for this frame and always pop them before the frame ends.
   theme.apply(ctx)
-  if reaper.ImGui_SetNextWindowSize and reaper.ImGui_Cond_FirstUseEver then reaper.ImGui_SetNextWindowSize(ctx,280,760,reaper.ImGui_Cond_FirstUseEver()) end
+  if reaper.ImGui_SetNextWindowSize and reaper.ImGui_Cond_FirstUseEver then reaper.ImGui_SetNextWindowSize(ctx,px(280),px(760),reaper.ImGui_Cond_FirstUseEver()) end
   local visible, open = reaper.ImGui_Begin(ctx,'ReaSpect',true,window_flags)
   if not visible then track_notes.flush() end
   if visible then
@@ -251,8 +252,12 @@ local function draw_frame()
     if reaper.ImGui_GetContentRegionAvail and reaper.ImGui_GetCursorPosX then
       local cursor_x=reaper.ImGui_GetCursorPosX(ctx)
       local avail_w=reaper.ImGui_GetContentRegionAvail(ctx)
-      local icons_w=4*25+3*4
-      reaper.ImGui_SameLine(ctx,math.max(cursor_x,cursor_x+avail_w-icons_w),0)
+      local icons_w=px(4*25+3*4)
+      if avail_w>=icons_w or px(1)==1 then
+        reaper.ImGui_SameLine(ctx,math.max(cursor_x,cursor_x+avail_w-icons_w),0)
+      else
+        reaper.ImGui_NewLine(ctx)
+      end
     end
     panel_button('track');reaper.ImGui_SameLine(ctx);panel_button('item');reaper.ImGui_SameLine(ctx);panel_button('channel');reaper.ImGui_SameLine(ctx);theme_button()
     reaper.ImGui_Separator(ctx)
@@ -264,13 +269,13 @@ local function draw_frame()
     if state.panels.channel then names[#names+1]='channel' end
     if #names==0 then reaper.ImGui_TextDisabled(ctx,'All panels hidden')
     else
-      local split_space=(#names-1)*6
-      local usable=math.max(80,ah-split_space)
+      local split_space=(#names-1)*px(6)
+      local usable=math.max(px(80),ah-split_space)
       local sum=0; for _,n in ipairs(names) do sum=sum+state.heights[n] end
       if sum<=0 then sum=1 end
       local y=0
       for i,n in ipairs(names) do
-        local h=(i==#names) and (usable-y) or math.max(70,usable*(state.heights[n]/sum))
+        local h=(i==#names) and (usable-y) or math.max(px(70),usable*(state.heights[n]/sum))
         draw_panel(n,h,function()
           if n=='track' then track_panel.draw(ctx,state) elseif n=='item' then item_panel.draw(ctx,state) else channel_panel.draw(ctx,state) end
         end)
@@ -283,23 +288,41 @@ local function draw_frame()
   -- visible (unlike Dear ImGui's C++ API). A collapsed window remains open but
   -- has no matching window scope to end.
   if visible then
-    -- Keep transport available after clicking inspector controls. Active
-    -- text fields and open popups retain their own Space key behavior.
+    -- Active editors and popups retain their own keyboard behavior.
     if reaper.ImGui_IsWindowFocused and reaper.ImGui_FocusedFlags_RootAndChildWindows
-        and reaper.ImGui_IsKeyPressed and reaper.ImGui_Key_Space
         and reaper.ImGui_IsAnyItemActive and reaper.ImGui_IsPopupOpen
         and reaper.ImGui_PopupFlags_AnyPopupId and reaper.ImGui_PopupFlags_AnyPopupLevel
         and reaper.ImGui_IsWindowFocused(ctx,reaper.ImGui_FocusedFlags_RootAndChildWindows())
         and not reaper.ImGui_IsAnyItemActive(ctx)
-        and not reaper.ImGui_IsPopupOpen(ctx,'',reaper.ImGui_PopupFlags_AnyPopupId() | reaper.ImGui_PopupFlags_AnyPopupLevel())
-        and reaper.ImGui_IsKeyPressed(ctx,reaper.ImGui_Key_Space(),false)
-        and (not reaper.ImGui_GetKeyMods or reaper.ImGui_GetKeyMods(ctx)==0) then
-      reaper.Main_OnCommand(40044,0)
+        and not reaper.ImGui_IsPopupOpen(ctx,'',reaper.ImGui_PopupFlags_AnyPopupId() | reaper.ImGui_PopupFlags_AnyPopupLevel()) then
+      if reaper.ImGui_IsKeyPressed and reaper.ImGui_Key_Space
+          and reaper.ImGui_IsKeyPressed(ctx,reaper.ImGui_Key_Space(),false)
+          and (not reaper.ImGui_GetKeyMods or reaper.ImGui_GetKeyMods(ctx)==0) then
+        reaper.Main_OnCommand(40044,0)
+      end
+      -- Newer ImGui versions map the platform shortcut modifier to Mod_Ctrl.
+      local modifier=reaper.ImGui_Mod_Shortcut or reaper.ImGui_Mod_Ctrl
+      if reaper.ImGui_Shortcut and modifier and reaper.ImGui_Key_Z and reaper.ImGui_Mod_Shift then
+        local chord=modifier() | reaper.ImGui_Key_Z()
+        local command
+        if reaper.ImGui_Shortcut(ctx,chord) then
+          command=40029
+        elseif reaper.ImGui_Shortcut(ctx,chord | reaper.ImGui_Mod_Shift()) then
+          command=40030
+        end
+        if command then
+          finish_edits()
+          track_notes.flush()
+          undo.flush_wheel()
+          reaper.Main_OnCommand(command,0)
+        end
+      end
     end
     reaper.ImGui_End(ctx)
   end
   if reaper.ImGui_IsMouseDown and not reaper.ImGui_IsMouseDown(ctx,0)
       and (not reaper.ImGui_IsAnyItemActive or not reaper.ImGui_IsAnyItemActive(ctx)) then finish_edits() end
+  rack.finish_tcp_fx_drag(ctx,state)
   theme.draw_editor(ctx)
   local auto_editor=package.loaded['ReaSpect.widgets.auto_colors']
   if auto_editor and auto_editor.draw_window then auto_editor.draw_window(ctx) end

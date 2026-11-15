@@ -1,7 +1,45 @@
 local persist = require('ReaSpect.core.persistence')
-local M = {editor_open=false,suggestions={},is_light=false}
+local M = {editor_open=false,suggestions={},is_light=false,gui_scale=100}
+local min_scale,max_scale,scale_step=75,175,5
+local frame_scale=1
+
+local function valid_scale(percent)
+  return type(percent)=='number' and percent>=min_scale and percent<=max_scale and percent%scale_step==0
+end
+
+function M.set_gui_scale(percent)
+  if not valid_scale(percent) then return end
+  M.gui_scale=percent
+  persist.set('gui_scale',percent)
+end
+
+function M.px(value) return value*frame_scale end
 -- Logical pixel sizes; ReaImGui applies the display's DPI scaling.
 M.font_sizes={body=12,heading=12,caption=11,readout=11,button=14,brand=16}
+local font_defaults={body=12,heading=12,caption=11,readout=11,button=14,brand=16}
+local font_choices={'Default','Arial','Verdana','Tahoma','Segoe UI','sans-serif','monospace'}
+local font_cache={}
+M.font_family='Default'
+function M.set_typography(size,family)
+  size=tonumber(size) or 12
+  if size~=size then size=12 end
+  size=math.max(10,math.min(16,math.floor(size+.5)))
+  local valid=false
+  for _,name in ipairs(font_choices) do if name==family then valid=true end end
+  M.font_family=valid and family or 'Default'
+  for role,base in pairs(font_defaults) do M.font_sizes[role]=base+size-12 end
+  persist.set('font_size',size)
+  persist.set('font_family',M.font_family)
+end
+local function selected_font(ctx)
+  if M.font_family=='Default' or not reaper.ImGui_CreateFont then return nil end
+  if font_cache[M.font_family]==nil then
+    local ok,font=pcall(reaper.ImGui_CreateFont,M.font_family)
+    if ok and font and reaper.ImGui_Attach then reaper.ImGui_Attach(ctx,font) end
+    font_cache[M.font_family]=ok and font or false
+  end
+  return font_cache[M.font_family] or nil
+end
 local defaults={window=0x17191CFF,panel=0x1D2024FF,frame=0x292C30FF,text=0xD4D7DBFF,accent=0xC6A4F3FF,gold=0xE5B84DFF,meter=0x7859C9FF,border=0x454A50FF,route_parent=0xC6A4F3FF,route_send=0xF2C43DFF,route_receive=0xEA5264FF}
 local light_defaults={window=0xE3E7EDFF,panel=0xF6F7FAFF,frame=0xE5E8EEFF,text=0x252B36FF,border=0xA2AAB8FF,
   accent=0x62458FFF,gold=0x87600FFF,meter=0x7859C9FF,
@@ -154,6 +192,9 @@ end
 local function load()
   if M.loaded then return end
   M.loaded=true
+  local saved_scale=persist.get_num('gui_scale',100)
+  if valid_scale(saved_scale) then M.gui_scale=saved_scale end
+  M.set_typography(persist.get_num('font_size',12),persist.get('font_family','Default'))
   if persist.get('theme_window',nil)==nil then M.import('auto');return end
   for _,key in ipairs(keys) do M.colors[key]=persist.get_num('theme_'..key,defaults[key]) end
   M.is_light=luminance(M.colors.panel or M.colors.window or defaults.panel)>=145
@@ -190,19 +231,39 @@ end
 local function to_widget(c) return ((c&255)<<24)|((c>>8)&0xFFFFFF) end
 local function from_widget(c) return ((c&0xFFFFFF)<<8)|((c>>24)&255) end
 local function draw_editor_contents(ctx)
+  if reaper.ImGui_BeginCombo(ctx,'GUI scale',M.gui_scale..'%') then
+    for choice=min_scale,max_scale,scale_step do
+      if reaper.ImGui_Selectable(ctx,choice..'%',choice==M.gui_scale) then M.set_gui_scale(choice) end
+      if choice==M.gui_scale and reaper.ImGui_SetItemDefaultFocus then reaper.ImGui_SetItemDefaultFocus(ctx) end
+    end
+    reaper.ImGui_EndCombo(ctx)
+  end
+  reaper.ImGui_Separator(ctx)
+  reaper.ImGui_TextDisabled(ctx,'Text')
+  local changed,size=reaper.ImGui_SliderInt(ctx,'Font size',M.font_sizes.body,10,16)
+  if changed then M.set_typography(size,M.font_family) end
+  if reaper.ImGui_BeginCombo(ctx,'Font',M.font_family) then
+    for _,name in ipairs(font_choices) do
+      if reaper.ImGui_Selectable(ctx,name,name==M.font_family) then M.set_typography(M.font_sizes.body,name) end
+    end
+    reaper.ImGui_EndCombo(ctx)
+  end
+  if reaper.ImGui_Button(ctx,'Reset text') then M.set_typography(12,'Default') end
+  reaper.ImGui_TextWrapped(ctx,'Changes are remembered. Unavailable fonts use a system fallback.')
+  reaper.ImGui_Separator(ctx)
   reaper.ImGui_TextDisabled(ctx,'Import from the current REAPER theme')
   if reaper.ImGui_Button(ctx,'Auto Detect') then M.import('auto') end
   reaper.ImGui_SameLine(ctx);if reaper.ImGui_Button(ctx,'Import Dark') then M.import('dark') end
   reaper.ImGui_SameLine(ctx);if reaper.ImGui_Button(ctx,'Import Light') then M.import('light') end
   reaper.ImGui_Separator(ctx)
-  reaper.ImGui_SetCursorPosX(ctx,215);reaper.ImGui_TextDisabled(ctx,'Active')
-  reaper.ImGui_SameLine(ctx,290);reaper.ImGui_TextDisabled(ctx,'Alternates')
+  reaper.ImGui_SetCursorPosX(ctx,M.px(215));reaper.ImGui_TextDisabled(ctx,'Active')
+  reaper.ImGui_SameLine(ctx,M.px(290));reaper.ImGui_TextDisabled(ctx,'Alternates')
   local flags=(reaper.ImGui_ColorEditFlags_NoAlpha and reaper.ImGui_ColorEditFlags_NoAlpha() or 0)
     |(reaper.ImGui_ColorEditFlags_NoInputs and reaper.ImGui_ColorEditFlags_NoInputs() or 0)
     |(reaper.ImGui_ColorEditFlags_NoOptions and reaper.ImGui_ColorEditFlags_NoOptions() or 0)
   for _,key in ipairs(keys) do
-    reaper.ImGui_Text(ctx,labels[key]);reaper.ImGui_SameLine(ctx,215)
-    if reaper.ImGui_SetNextItemWidth then reaper.ImGui_SetNextItemWidth(ctx,22) end
+    reaper.ImGui_Text(ctx,labels[key]);reaper.ImGui_SameLine(ctx,M.px(215))
+    if reaper.ImGui_SetNextItemWidth then reaper.ImGui_SetNextItemWidth(ctx,M.px(22)) end
     local changed,value=reaper.ImGui_ColorEdit4(ctx,'##theme_'..key,to_widget(M.colors[key]),flags)
     local reset=reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsItemClicked(ctx,1)
     if reset then M.reset_color(key)
@@ -217,7 +278,7 @@ local function draw_editor_contents(ctx)
     if reaper.ImGui_IsItemHovered(ctx) then reaper.ImGui_SetTooltip(ctx,'Right-click: reset this color to the current light/dark preset') end
     for i,choice in ipairs((M.suggestions or {})[key] or {}) do
       reaper.ImGui_SameLine(ctx)
-      if reaper.ImGui_ColorButton(ctx,'##choice_'..key..i,to_widget(choice.color),flags,18,18) then
+      if reaper.ImGui_ColorButton(ctx,'##choice_'..key..i,to_widget(choice.color),flags,M.px(18),M.px(18)) then
         M.colors[key]=key=='accent' and blend(choice.color,0xFFFFFFFF,.36) or choice.color
         if key=='accent' then M.colors.route_parent=M.colors.accent
         elseif key=='gold' then M.colors.route_send=M.colors.gold end
@@ -235,7 +296,7 @@ end
 function M.draw_editor(ctx)
   if not M.editor_open then return end
   load()
-  if reaper.ImGui_SetNextWindowSize and reaper.ImGui_Cond_FirstUseEver then reaper.ImGui_SetNextWindowSize(ctx,520,480,reaper.ImGui_Cond_FirstUseEver()) end
+  if reaper.ImGui_SetNextWindowSize and reaper.ImGui_Cond_FirstUseEver then reaper.ImGui_SetNextWindowSize(ctx,M.px(520),M.px(480),reaper.ImGui_Cond_FirstUseEver()) end
   local visible,open=reaper.ImGui_Begin(ctx,'ReaSpect / Theme',true)
   M.editor_open=open
   if not visible then return end
@@ -248,9 +309,10 @@ function M.draw_editor(ctx)
 end
 function M.apply(ctx)
   load()
+  frame_scale=M.gui_scale/100
   M.font_pushed=false
   if reaper.ImGui_PushFont and reaper.ImGui_PopFont then
-    reaper.ImGui_PushFont(ctx,nil,M.font_sizes.body)
+    reaper.ImGui_PushFont(ctx,selected_font(ctx),M.px(M.font_sizes.body))
     M.font_pushed=true
   end
   local push = reaper.ImGui_PushStyleColor
@@ -276,16 +338,20 @@ function M.apply(ctx)
   end
   M.vars=0
   if reaper.ImGui_PushStyleVar then
+    if frame_scale~=1 then
+      local padding=reaper.ImGui_StyleVar_WindowPadding
+      if padding then reaper.ImGui_PushStyleVar(ctx,padding(),M.px(8),M.px(8)); M.vars=M.vars+1 end
+    end
     local sv=reaper.ImGui_StyleVar_ScrollbarSize
-    if sv then reaper.ImGui_PushStyleVar(ctx,sv(),5); M.vars=M.vars+1 end
+    if sv then reaper.ImGui_PushStyleVar(ctx,sv(),M.px(5)); M.vars=M.vars+1 end
     local fp=reaper.ImGui_StyleVar_FramePadding
-    if fp then reaper.ImGui_PushStyleVar(ctx,fp(),3,2); M.vars=M.vars+1 end
+    if fp then reaper.ImGui_PushStyleVar(ctx,fp(),M.px(3),M.px(2)); M.vars=M.vars+1 end
     local fb=reaper.ImGui_StyleVar_FrameBorderSize
-    if M.is_light and fb then reaper.ImGui_PushStyleVar(ctx,fb(),1);M.vars=M.vars+1 end
+    if M.is_light and fb then reaper.ImGui_PushStyleVar(ctx,fb(),M.px(1));M.vars=M.vars+1 end
     local fr=reaper.ImGui_StyleVar_FrameRounding
-    if fr then reaper.ImGui_PushStyleVar(ctx,fr(),4);M.vars=M.vars+1 end
+    if fr then reaper.ImGui_PushStyleVar(ctx,fr(),M.px(4));M.vars=M.vars+1 end
     local spacing=reaper.ImGui_StyleVar_ItemSpacing
-    if spacing then reaper.ImGui_PushStyleVar(ctx,spacing(),4,2);M.vars=M.vars+1 end
+    if spacing then reaper.ImGui_PushStyleVar(ctx,spacing(),M.px(4),M.px(2));M.vars=M.vars+1 end
   end
 end
 function M.pop(ctx)

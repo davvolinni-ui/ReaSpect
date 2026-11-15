@@ -1,3 +1,4 @@
+local theme=require('ReaSpect.core.theme')
 local controls=require('ReaSpect.widgets.controls')
 local M={}
 
@@ -7,7 +8,7 @@ function M.draw(ctx,id,draw)
   local _,height=reaper.ImGui_GetContentRegionAvail(ctx)
   if not height or height<=0 then return false end
   reaper.ImGui_PushStyleVar(ctx,reaper.ImGui_StyleVar_WindowPadding(),0,0)
-  reaper.ImGui_PushStyleVar(ctx,reaper.ImGui_StyleVar_ScrollbarSize(),8)
+  reaper.ImGui_PushStyleVar(ctx,reaper.ImGui_StyleVar_ScrollbarSize(),theme.px(8))
   local visible=reaper.ImGui_BeginChild(ctx,id,-1,height,0,controls.scroll_flags())
   reaper.ImGui_PopStyleVar(ctx,2)
   if visible then

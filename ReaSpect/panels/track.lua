@@ -316,6 +316,19 @@ local function placement_controls(ctx,state)
   end
 end
 
+local function folder_role(ctx,state)
+  local labels,values={'Normal','Folder parent','Close 1 folder'},{0,1,-1}
+  local closing_depth=1
+  each_track(state,function(track) closing_depth=math.max(closing_depth,-api.track.folder_depth(track)) end)
+  for depth=2,closing_depth do
+    labels[#labels+1]='Close '..depth..' folders'
+    values[#values+1]=-depth
+  end
+  prop.enum(ctx,'Folder role','##folder',shared(state,api.track.folder_depth),labels,values,function(value)
+    edit(state,'Set folder state',api.track.set_folder_depth,value)
+  end,{tooltip='Choose whether this track starts a folder, closes a folder, or has neither role.'})
+end
+
 local function freeze_controls(ctx,state)
   local tracks={}
   each_track(state,function(track)
@@ -389,10 +402,11 @@ function M.draw(ctx, state)
   local hx,hy=reaper.ImGui_GetCursorScreenPos(ctx)
   local hw=reaper.ImGui_GetContentRegionAvail(ctx) or 240
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
-  local header_h=27
+  local px=theme.px
+  local header_h=px(27)
   reaper.ImGui_DrawList_AddRectFilled(dl,hx,hy,hx+hw,hy+header_h,theme.colors.frame or 0x292D31FF,2)
-  local strip_w=13
-  color.strip(ctx,'##trackcolor_'..tostring(t),api.track.color(t),13,27,function(c)
+  local strip_w=px(13)
+  color.strip(ctx,'##trackcolor_'..tostring(t),api.track.color(t),strip_w,header_h,function(c)
     edit(state,'Set track color',function(track,value)
       auto_colors.protect(track)
       api.track.set_color(track,value)
@@ -403,7 +417,7 @@ function M.draw(ctx, state)
     end,state.selected_tracks)
   end,auto_colors.manual_palette(auto_colors.config()))
   local number_left=hx+strip_w
-  local number_right=hx+40
+  local number_right=hx+px(40)
   reaper.ImGui_DrawList_AddRectFilled(dl,number_left,hy,number_right,hy+header_h,theme.colors.panel or 0x1D2024FF)
   local number=reaper.GetMediaTrackInfo_Value(t,'IP_TRACKNUMBER') or 0
   local number_text=number>0 and tostring(math.floor(number)) or 'M'
@@ -411,10 +425,10 @@ function M.draw(ctx, state)
   local number_h=header_text_height(ctx,number_text)
   reaper.ImGui_DrawList_AddText(dl,number_left+(number_right-number_left-number_w)*0.5,hy+(header_h-number_h)*0.5,theme.colors.text or 0xD4D7DBFF,number_text)
 
-  local icon_x=hx+hw-23
+  local icon_x=hx+hw-px(23)
   local is_folder=reaper.GetMediaTrackInfo_Value(t,'I_FOLDERDEPTH')>0
-  local name_x=number_right+5
-  local name_w=math.max(1,icon_x-name_x-4-(is_folder and 24 or 0))
+  local name_x=number_right+px(5)
+  local name_w=math.max(1,icon_x-name_x-px(is_folder and 28 or 4))
   if M.rename and M.rename.track~=t then M.rename=nil end
   if M.rename and M.rename.track==t then
     local rename=M.rename
@@ -432,7 +446,7 @@ function M.draw(ctx, state)
     end
     local vars=0
     if reaper.ImGui_PushStyleVar and reaper.ImGui_StyleVar_FramePadding then
-      reaper.ImGui_PushStyleVar(ctx,reaper.ImGui_StyleVar_FramePadding(),4,2);vars=vars+1
+      reaper.ImGui_PushStyleVar(ctx,reaper.ImGui_StyleVar_FramePadding(),px(4),px(2));vars=vars+1
     end
     if reaper.ImGui_PushStyleVar and reaper.ImGui_StyleVar_FrameBorderSize then
       reaper.ImGui_PushStyleVar(ctx,reaper.ImGui_StyleVar_FrameBorderSize(),1);vars=vars+1
@@ -485,6 +499,7 @@ function M.draw(ctx, state)
     end,{default=-1})
     playback_offset(ctx,state)
     routing_summary(ctx,state)
+    folder_role(ctx,state)
 
     local nonstandard_placement=any_track(state,function(track) return api.track.free_mode(track)~=0 end)
     if nonstandard_placement then placement_controls(ctx,state) end
@@ -525,16 +540,6 @@ function M.draw(ctx, state)
       prop.checkbox(ctx,'Parent send','##mainsend',shared(state,api.track.mainsend),function(v)
         edit(state,'Set parent/master send',api.track.set_mainsend,v)
       end,true)
-      local folder_labels,folder_values={'Normal','Folder parent','Close 1 folder'},{0,1,-1}
-      local closing_depth=1
-      each_track(state,function(track) closing_depth=math.max(closing_depth,-api.track.folder_depth(track)) end)
-      for depth=2,closing_depth do
-        folder_labels[#folder_labels+1]='Close '..depth..' folders'
-        folder_values[#folder_values+1]=-depth
-      end
-      prop.enum(ctx,'Folder role','##folder',shared(state,api.track.folder_depth),folder_labels,folder_values,function(v)
-        edit(state,'Set folder state',api.track.set_folder_depth,v)
-      end)
       if not nonstandard_placement then placement_controls(ctx,state) end
     end
     fx_parameters.draw(ctx,state)

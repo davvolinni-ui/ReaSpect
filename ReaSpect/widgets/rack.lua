@@ -64,7 +64,7 @@ end
 local function row_text(ctx,dl,x,y,width,height,ink,text,role)
   local size=(theme.font_sizes and theme.font_sizes[role or 'body']) or 12
   local pushed=reaper.ImGui_PushFont and reaper.ImGui_PopFont
-  if pushed then reaper.ImGui_PushFont(ctx,nil,size) end
+  if pushed then reaper.ImGui_PushFont(ctx,nil,theme.px(size)) end
   local function measure(value)
     if reaper.ImGui_CalcTextSize then return reaper.ImGui_CalcTextSize(ctx,value) end
     return #value*size*0.55,size
@@ -129,7 +129,7 @@ local function category_range(name)
   local first=(name or ''):upper():match('^%s*([A-Z])')
   for _,range in ipairs(CATEGORY_RANGES) do
     if range.other and not first then return range.label end
-    if first and first>=range.first and first<=range.last then return range.label end
+    if first and range.first and range.last and first>=range.first and first<=range.last then return range.label end
   end
   return CATEGORY_RANGES[#CATEGORY_RANGES].label
 end
@@ -665,10 +665,78 @@ local function track_identity(track)
   return reaper.GetTrackGUID and reaper.GetTrackGUID(track) or tostring(track)
 end
 
+local function can_copy_to_tcp()
+  return ((reaper.GetMousePosition and reaper.GetThingFromPoint) or reaper.BR_TrackAtMouseCursor)
+    and reaper.TrackFX_CopyToTrack and reaper.ImGui_IsMouseReleased and reaper.ImGui_IsMouseDown
+    and reaper.ImGui_IsWindowHovered and reaper.ImGui_HoveredFlags_AnyWindow
+end
+
+local function fx_drag_source(ctx,track,guid,label)
+  local payload_type=guid and 'REASPECT_FX_MOVE' or 'REASPECT_FX_CHAIN'
+  local payload=track_identity(track)..'|'..(guid or 'chain')
+  reaper.ImGui_SetDragDropPayload(ctx,payload_type,payload,reaper.ImGui_Cond_Once())
+  if can_copy_to_tcp() and not M.tcp_fx_drag then
+    M.tcp_fx_drag={track=track,project=current_project(),guid=guid}
+  end
+  reaper.ImGui_Text(ctx,label)
+end
+
+function M.finish_tcp_fx_drag(ctx,state)
+  local drag=M.tcp_fx_drag
+  if not drag then return end
+  if reaper.ImGui_IsKeyPressed and reaper.ImGui_Key_Escape
+      and reaper.ImGui_IsKeyPressed(ctx,reaper.ImGui_Key_Escape(),false) then
+    drag.cancelled=true
+  end
+  -- A TCP is outside ImGui. The preview payload may already be gone when
+  -- the release arrives, so track the mouse gesture independently.
+  if not reaper.ImGui_IsMouseReleased(ctx,0) then
+    if not reaper.ImGui_IsMouseDown(ctx,0) then M.tcp_fx_drag=nil end
+    return
+  end
+  M.tcp_fx_drag=nil
+  local hover_flags=reaper.ImGui_HoveredFlags_AnyWindow()
+  if reaper.ImGui_HoveredFlags_AllowWhenBlockedByActiveItem then
+    hover_flags=hover_flags | reaper.ImGui_HoveredFlags_AllowWhenBlockedByActiveItem()
+  end
+  if drag.cancelled or reaper.ImGui_IsWindowHovered(ctx,hover_flags)
+      or not valid_project_track(drag.track,drag.project) then return end
+  local target
+  if reaper.GetThingFromPoint and reaper.GetMousePosition then
+    local track,area=reaper.GetThingFromPoint(reaper.GetMousePosition())
+    if area and area:sub(1,3)=='tcp' then target=track end
+  elseif reaper.BR_TrackAtMouseCursor then
+    local track,area=reaper.BR_TrackAtMouseCursor()
+    if area==0 then target=track end
+  end
+  if not target or target==drag.track
+      or not valid_project_track(target,drag.project) then return end
+
+  local first,last=0,reaper.TrackFX_GetCount(drag.track)-1
+  if drag.guid then
+    first=resolve_fx_after_modal(drag.track,drag.project,drag.guid)
+    if first==nil then return end
+    last=first
+  end
+  if last<first then return end
+  undo.edit(drag.guid and 'Copy track FX' or 'Copy track FX chain',function()
+    local destination=reaper.TrackFX_GetCount(target)
+    for index=first,last do
+      reaper.TrackFX_CopyToTrack(drag.track,index,target,destination,false)
+      local count=reaper.TrackFX_GetCount(target)
+      if count<=destination then break end
+      destination=count
+    end
+    state.fx=nil
+    reaper.UpdateArrange()
+  end)
+end
+
 local function fx_drop(ctx,track,state,destination,visual_slot)
   if not (reaper.ImGui_BeginDragDropTarget and reaper.ImGui_BeginDragDropTarget(ctx)) then return end
   drag_scope(ctx,reaper.ImGui_EndDragDropTarget,function()
     local moved,payload=reaper.ImGui_AcceptDragDropPayload(ctx,'REASPECT_FX_MOVE',nil)
+    if moved then M.tcp_fx_drag=nil end
     if not moved or type(payload)~='string' or not reaper.TrackFX_GetFXGUID then return end
     local owner,guid=payload:match('^([^|]+)|(.+)$')
     if owner~=track_identity(track) then return end
@@ -924,7 +992,7 @@ end
 
 local function fx_toggle_button(ctx,track,state,fx,index,width)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
-  local hit=reaper.ImGui_InvisibleButton(ctx,'##fxenable'..index,width,FX_ROW_HEIGHT)
+  local hit=reaper.ImGui_InvisibleButton(ctx,'##fxenable'..index,width,theme.px(FX_ROW_HEIGHT))
   local hovered=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
   local activated=reaper.ImGui_IsItemActivated and reaper.ImGui_IsItemActivated(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
@@ -1066,28 +1134,28 @@ local function fx_slot_menu(ctx,track,state,fx,index,popup,visual_slot)
 end
 
 local function fx_row_surface(dl,x,y,width,label_width)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+width,y+FX_ROW_HEIGHT+2,C.shadow,5)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+width,y+FX_ROW_HEIGHT,C.header,5)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+width,y+theme.px(FX_ROW_HEIGHT)+2,C.shadow,5)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+width,y+theme.px(FX_ROW_HEIGHT),C.header,5)
   if theme.is_light and reaper.ImGui_DrawList_AddRect then
-    reaper.ImGui_DrawList_AddRect(dl,x,y,x+width,y+FX_ROW_HEIGHT,theme.slot_border(),5,0,1)
+    reaper.ImGui_DrawList_AddRect(dl,x,y,x+width,y+theme.px(FX_ROW_HEIGHT),theme.slot_border(),5,0,1)
   end
   reaper.ImGui_DrawList_AddLine(dl,x+4,y+1,x+width-4,y+1,0xBEB4AF24,1)
-  reaper.ImGui_DrawList_AddLine(dl,x+label_width,y+4,x+label_width,y+FX_ROW_HEIGHT-4,theme.is_light and theme.slot_border() or 0x211F20AA,1)
+  reaper.ImGui_DrawList_AddLine(dl,x+label_width,y+4,x+label_width,y+theme.px(FX_ROW_HEIGHT)-4,theme.is_light and theme.slot_border() or 0x211F20AA,1)
 end
 
 local function fx_row(ctx,track,state,fx,index,visual_slot)
   local avail=reaper.ImGui_GetContentRegionAvail(ctx) or 120
   local body=math.max(32,avail)
-  local toggle_width=FX_TOGGLE_WIDTH
+  local toggle_width=theme.px(FX_TOGGLE_WIDTH)
   local label_width=math.max(16,body-toggle_width)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
   fx_row_surface(dl,x,y,body,label_width)
   if fx then
     local name=fx_name(fx.name)
-    row_text(ctx,dl,x+7,y,math.max(0,label_width-12),FX_ROW_HEIGHT,(fx.enabled and not fx.offline) and C.text or C.muted,(fx.offline and '[off] ' or '')..name)
+    row_text(ctx,dl,x+7,y,math.max(0,label_width-12),theme.px(FX_ROW_HEIGHT),(fx.enabled and not fx.offline) and C.text or C.muted,(fx.offline and '[off] ' or '')..name)
   end
-  local hit=reaper.ImGui_InvisibleButton(ctx,'##fxrow'..index,label_width,FX_ROW_HEIGHT)
+  local hit=reaper.ImGui_InvisibleButton(ctx,'##fxrow'..index,label_width,theme.px(FX_ROW_HEIGHT))
   local right_click=reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1)
   local popup='##fx_slot_menu_'..tostring(track)..'_'..index
   if right_click and reaper.ImGui_OpenPopup then
@@ -1097,7 +1165,8 @@ local function fx_row(ctx,track,state,fx,index,visual_slot)
   if reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx) then
     reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+body,y+23,0xFFFFFF12,5)
   end
-  tooltip(ctx,fx and (fx.name..(fx.offline and ' (offline)' or '')..'\nClick: float  •  Ctrl: chain  •  Shift: bypass  •  Ctrl+Shift: offline  •  Alt: delete\nAlt+Shift: bypass same slot on selected tracks  •  Alt+Ctrl+Shift: all tracks  •  Drag: reorder') or 'Click to search and insert an FX. Right-click for installed-FX options.')
+  local copy_hint=can_copy_to_tcp() and '\nDrag to another track panel to copy this FX' or ''
+  tooltip(ctx,fx and (fx.name..(fx.offline and ' (offline)' or '')..'\nClick: float  •  Ctrl: chain  •  Shift: bypass  •  Ctrl+Shift: offline  •  Alt: delete\nAlt+Shift: bypass same slot on selected tracks  •  Alt+Ctrl+Shift: all tracks  •  Drag: reorder'..copy_hint) or 'Click to search and insert an FX. Right-click for installed-FX options.')
   if hit then
     if fx then
       local alt,shift,ctrl=has_mod(ctx,'Alt'),has_mod(ctx,'Shift'),has_mod(ctx,'Ctrl')
@@ -1135,9 +1204,10 @@ local function fx_row(ctx,track,state,fx,index,visual_slot)
     drag_scope(ctx,reaper.ImGui_EndDragDropSource,function()
       local guid=reaper.TrackFX_GetFXGUID and reaper.TrackFX_GetFXGUID(track,fx.index)
       if guid and guid~='' then
-        reaper.ImGui_SetDragDropPayload(ctx,'REASPECT_FX_MOVE',track_identity(track)..'|'..guid,reaper.ImGui_Cond_Once())
+        fx_drag_source(ctx,track,guid,fx_name(fx.name))
+      else
+        reaper.ImGui_Text(ctx,fx_name(fx.name))
       end
-      reaper.ImGui_Text(ctx,fx_name(fx.name))
     end)
   end
   local destination=visual_slot~=nil and not fx and (0x800000|visual_slot) or index
@@ -1154,24 +1224,25 @@ local function fx_row(ctx,track,state,fx,index,visual_slot)
 end
 
 local function small_knob(ctx,id,value,minv,maxv,tint,reset,feedback)
+  local px=theme.px
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
-  local cx,cy=x+11,y+11
+  local cx,cy=x+px(11),y+px(11)
   local a1,a2=math.pi*.75,math.pi*2.25
   local fraction=clamp((value-minv)/(maxv-minv),0,1)
   local angle=a1+(a2-a1)*fraction
-  reaper.ImGui_DrawList_AddCircleFilled(dl,cx+0.4,cy+0.8,10.5,C.shadow)
-  reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,9.8,0x252A2DFF)
-  arc(dl,cx,cy,8.8,0,math.pi*2,0x697074FF,1.2)
+  reaper.ImGui_DrawList_AddCircleFilled(dl,cx+px(0.4),cy+px(0.8),px(10.5),C.shadow)
+  reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,px(9.8),0x252A2DFF)
+  arc(dl,cx,cy,px(8.8),0,math.pi*2,0x697074FF,1.2)
   if feedback=='pan' then
     local center=(a1+a2)/2
-    if math.abs(value)>.01 then arc(dl,cx,cy,8.8,math.min(center,angle),math.max(center,angle),tint,1.9) end
-  elseif fraction>.015 then arc(dl,cx,cy,8.8,a1,angle,tint,1.9) end
-  reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,6.5,0x3C4245FF)
-  if reaper.ImGui_DrawList_AddCircle then reaper.ImGui_DrawList_AddCircle(dl,cx,cy,6.5,0x202427FF,0,1) end
-  reaper.ImGui_DrawList_AddLine(dl,cx,cy,cx+math.cos(angle)*5,cy+math.sin(angle)*5,
+    if math.abs(value)>.01 then arc(dl,cx,cy,px(8.8),math.min(center,angle),math.max(center,angle),tint,1.9) end
+  elseif fraction>.015 then arc(dl,cx,cy,px(8.8),a1,angle,tint,1.9) end
+  reaper.ImGui_DrawList_AddCircleFilled(dl,cx,cy,px(6.5),0x3C4245FF)
+  if reaper.ImGui_DrawList_AddCircle then reaper.ImGui_DrawList_AddCircle(dl,cx,cy,px(6.5),0x202427FF,0,1) end
+  reaper.ImGui_DrawList_AddLine(dl,cx,cy,cx+math.cos(angle)*px(5),cy+math.sin(angle)*px(5),
     feedback=='pan' and math.abs(value)<.01 and 0xD5D9D8FF or C.white,1.9)
-  reaper.ImGui_InvisibleButton(ctx,id,22,22)
+  reaper.ImGui_InvisibleButton(ctx,id,px(22),px(22))
   local out=value
   local active=reaper.ImGui_IsItemActive and reaper.ImGui_IsItemActive(ctx)
   if reaper.ImGui_IsItemActivated and reaper.ImGui_IsItemActivated(ctx) then M.knob_drags[id]=value end
@@ -1179,10 +1250,10 @@ local function small_knob(ctx,id,value,minv,maxv,tint,reset,feedback)
     (reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1))
   if active and reaper.ImGui_GetMouseDragDelta then
     local _,dy=reaper.ImGui_GetMouseDragDelta(ctx,0,0,0,0)
-    out=clamp((M.knob_drags[id] or value)-dy*(maxv-minv)*.006,minv,maxv)
+    out=clamp((M.knob_drags[id] or value)-dy/theme.px(1)*(maxv-minv)*.006,minv,maxv)
   elseif active and reaper.ImGui_GetMouseDelta then
     local _,dy=reaper.ImGui_GetMouseDelta(ctx)
-    if dy~=0 then out=clamp(value-dy*(maxv-minv)*.006,minv,maxv) end
+    if dy~=0 then out=clamp(value-dy/theme.px(1)*(maxv-minv)*.006,minv,maxv) end
   end
   if not active then M.knob_drags[id]=nil end
   local wheel,new=controls.wheel(ctx,value,feedback=='pan' and 0.01 or 0.5,minv,maxv)
@@ -1263,12 +1334,12 @@ local function send_row(ctx,track,state,send,visual_slot)
   local label=(number>0 and (tostring(math.floor(number))..':') or '')..(name~='' and name or 'Track')
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+avail,y+27,C.shadow,5)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+avail,y+25,send.mute and C.send_muted or C.well,5)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+avail,y+theme.px(27),C.shadow,5)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+avail,y+theme.px(25),send.mute and C.send_muted or C.well,5)
   reaper.ImGui_DrawList_AddLine(dl,x+4,y+1,x+avail-4,y+1,0xBEB4AF24,1)
-  local title_w=math.max(20,avail-30)
-  row_text(ctx,dl,x+6,y,math.max(0,title_w-10),25,send.mute and C.muted or C.gold,label)
-  local send_hit=reaper.ImGui_InvisibleButton(ctx,'##sendlabel'..row_id,title_w,25)
+  local title_w=math.max(theme.px(20),avail-theme.px(30))
+  row_text(ctx,dl,x+6,y,math.max(0,title_w-10),theme.px(25),send.mute and C.muted or C.gold,label)
+  local send_hit=reaper.ImGui_InvisibleButton(ctx,'##sendlabel'..row_id,title_w,theme.px(25))
   local send_right=reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1)
   if send_hit then
     local alt,shift,ctrl=has_mod(ctx,'Alt'),has_mod(ctx,'Shift'),has_mod(ctx,'Ctrl')
@@ -1336,20 +1407,28 @@ local function fx_header(ctx,track,state,compact,available_width)
   local count=reaper.TrackFX_GetCount(track)
   local enabled=api.fx_chain_enabled(track)
   local combined=math.max(32,avail)
-  local body=combined-FX_TOGGLE_WIDTH
+  local body=combined-theme.px(FX_TOGGLE_WIDTH)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
-  local open_hit=reaper.ImGui_InvisibleButton(ctx,'##fxchain',body,FX_ROW_HEIGHT)
+  local open_hit=reaper.ImGui_InvisibleButton(ctx,'##fxchain',body,theme.px(FX_ROW_HEIGHT))
+  if M.tcp_fx_drag and not M.tcp_fx_drag.guid then open_hit=false end
   local body_hover=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
   local open_right=reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1)
-  tooltip(ctx,count>0 and 'Click: open the track FX chain  •  Right-click: search and add FX' or 'Click or right-click to search and add an FX')
+  local copy_hint=can_copy_to_tcp() and '\nDrag to another track panel to copy the FX chain' or ''
+  tooltip(ctx,count>0 and ('Click: open the track FX chain  •  Right-click: search and add FX'..copy_hint) or 'Click or right-click to search and add an FX')
   if (open_right or (open_hit and count==0)) and reaper.ImGui_OpenPopup then
     M.fx_search=''
     reaper.ImGui_OpenPopup(ctx,'##fx_header_menu')
   end
-  fx_drop(ctx,track,state,reaper.TrackFX_GetCount(track))
+  if count>0 and can_copy_to_tcp() and reaper.ImGui_BeginDragDropSource
+      and reaper.ImGui_BeginDragDropSource(ctx) then
+    drag_scope(ctx,reaper.ImGui_EndDragDropSource,function()
+      fx_drag_source(ctx,track,nil,'Copy FX chain')
+    end)
+  end
+  fx_drop(ctx,track,state,count)
   reaper.ImGui_SameLine(ctx,0,0)
-  local bypass_hit=reaper.ImGui_InvisibleButton(ctx,'##fxchainlamp',FX_TOGGLE_WIDTH,FX_ROW_HEIGHT)
+  local bypass_hit=reaper.ImGui_InvisibleButton(ctx,'##fxchainlamp',theme.px(FX_TOGGLE_WIDTH),theme.px(FX_ROW_HEIGHT))
   local bypass_hover=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
   local bypass_changed,next_enabled=controls.toggle(ctx,enabled,true)
   tooltip(ctx,enabled and 'Bypass all track FX' or 'Enable all track FX')
@@ -1357,10 +1436,10 @@ local function fx_header(ctx,track,state,compact,available_width)
   local text_col=enabled and (C.heading or C.violet) or 0xF26471FF
   if count==0 and enabled then line=0x7E7880FF end
   fx_row_surface(dl,x,y,combined,body)
-  if body_hover then reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+combined,y+FX_ROW_HEIGHT,0xFFFFFF12,5) end
-  if bypass_hover then reaper.ImGui_DrawList_AddRectFilled(dl,x+body+1,y+1,x+combined-1,y+FX_ROW_HEIGHT-1,0xFFFFFF12,3) end
-  row_text(ctx,dl,x+7,y,math.max(0,body-12),FX_ROW_HEIGHT,text_col,'FX','heading')
-  local marker_x=x+body+math.floor(FX_TOGGLE_WIDTH/2)
+  if body_hover then reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+combined,y+theme.px(FX_ROW_HEIGHT),0xFFFFFF12,5) end
+  if bypass_hover then reaper.ImGui_DrawList_AddRectFilled(dl,x+body+1,y+1,x+combined-1,y+theme.px(FX_ROW_HEIGHT)-1,0xFFFFFF12,3) end
+  row_text(ctx,dl,x+7,y,math.max(0,body-12),theme.px(FX_ROW_HEIGHT),text_col,'FX','heading')
+  local marker_x=x+body+math.floor(theme.px(FX_TOGGLE_WIDTH)/2)
   reaper.ImGui_DrawList_AddRectFilled(dl,marker_x-2,y+5,marker_x+2,y+18,line,2)
   if open_hit and count>0 then show_fx_chain_at(track,0) end
   if reaper.ImGui_BeginPopup and reaper.ImGui_BeginPopup(ctx,'##fx_header_menu') then
@@ -1426,30 +1505,30 @@ end
 
 local function send_header(ctx,track,available_width)
   local avail=available_width or reaper.ImGui_GetContentRegionAvail(ctx) or 120
-  local add_w,gap=23,3
+  local add_w,gap=theme.px(23),theme.px(3)
   local body=math.max(1,avail-add_w-gap)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
-  local route_hit=reaper.ImGui_InvisibleButton(ctx,'##sendhead',body,22)
+  local route_hit=reaper.ImGui_InvisibleButton(ctx,'##sendhead',body,theme.px(22))
   local route_hover=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
   local route_right=reaper.ImGui_IsItemClicked and reaper.ImGui_IsItemClicked(ctx,1)
   tooltip(ctx,'Click to open REAPER routing; right-click for REAPER’s native routing menu')
   reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+body,y+24,C.shadow,4)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+body,y+22,C.send_header,4)
-  if route_hover then reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+body,y+22,theme.is_light and C.send_hover or 0x566069AA,4) end
-  row_text(ctx,dl,x+8,y,math.max(0,body-12),22,C.heading or C.violet,'SENDS','heading')
+  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+body,y+theme.px(22),C.send_header,4)
+  if route_hover then reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+body,y+theme.px(22),theme.is_light and C.send_hover or 0x566069AA,4) end
+  row_text(ctx,dl,x+8,y,math.max(0,body-12),theme.px(22),C.heading or C.violet,'SENDS','heading')
   if route_hit then api.show_routing(track) end
   if route_right then api.show_native_track_menu('track_routing',track) end
 
   reaper.ImGui_SameLine(ctx,0,gap)
   local ax,ay=reaper.ImGui_GetCursorScreenPos(ctx)
-  local add_hit=reaper.ImGui_InvisibleButton(ctx,'##send_add',add_w,22)
+  local add_hit=reaper.ImGui_InvisibleButton(ctx,'##send_add',add_w,theme.px(22))
   local add_hover=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
   reaper.ImGui_DrawList_AddRectFilled(dl,ax+1,ay+2,ax+add_w,ay+24,C.shadow,4)
-  reaper.ImGui_DrawList_AddRectFilled(dl,ax,ay,ax+add_w,ay+22,
+  reaper.ImGui_DrawList_AddRectFilled(dl,ax,ay,ax+add_w,ay+theme.px(22),
     add_hover and (theme.is_light and C.send_hover or 0x4B454AFF) or C.send_header,4)
-  reaper.ImGui_DrawList_AddLine(dl,ax+add_w/2-4,ay+11,ax+add_w/2+4,ay+11,C.violet,1.8)
-  reaper.ImGui_DrawList_AddLine(dl,ax+add_w/2,ay+7,ax+add_w/2,ay+15,C.violet,1.8)
+  reaper.ImGui_DrawList_AddLine(dl,ax+add_w/2-4,ay+theme.px(11),ax+add_w/2+4,ay+theme.px(11),C.violet,1.8)
+  reaper.ImGui_DrawList_AddLine(dl,ax+add_w/2,ay+theme.px(7),ax+add_w/2,ay+theme.px(15),C.violet,1.8)
   tooltip(ctx,'Add a send to another track')
   if add_hit then open_send_picker(ctx,track) end
 end
@@ -1459,18 +1538,18 @@ local function send_empty_row(ctx,track,slot,reserved)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
   local initial_add=(slot or 1)==1
-  local hit=reaper.ImGui_InvisibleButton(ctx,'##send_empty_add'..tostring(slot or 1),avail,25)
+  local hit=reaper.ImGui_InvisibleButton(ctx,'##send_empty_add'..tostring(slot or 1),avail,theme.px(25))
   local hovered=reaper.ImGui_IsItemHovered and reaper.ImGui_IsItemHovered(ctx)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+avail,y+27,C.shadow,5)
-  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+avail,y+25,hovered and C.send_hover or C.well,5)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x+1,y+2,x+avail,y+theme.px(27),C.shadow,5)
+  reaper.ImGui_DrawList_AddRectFilled(dl,x,y,x+avail,y+theme.px(25),hovered and C.send_hover or C.well,5)
   if theme.is_light and reaper.ImGui_DrawList_AddRect then
-    reaper.ImGui_DrawList_AddRect(dl,x,y,x+avail,y+25,theme.slot_border(),5,0,1)
+    reaper.ImGui_DrawList_AddRect(dl,x,y,x+avail,y+theme.px(25),theme.slot_border(),5,0,1)
   end
   reaper.ImGui_DrawList_AddLine(dl,x+1,y+1,x+avail-1,y+1,0xBEB4AF24,1)
   if initial_add then
-    reaper.ImGui_DrawList_AddLine(dl,x+13,y+12.5,x+21,y+12.5,C.violet,1.7)
-    reaper.ImGui_DrawList_AddLine(dl,x+17,y+8.5,x+17,y+16.5,C.violet,1.7)
-    row_text(ctx,dl,x+29,y,math.max(0,avail-33),25,C.text,'Add send…')
+    reaper.ImGui_DrawList_AddLine(dl,x+13,y+theme.px(12.5),x+21,y+theme.px(12.5),C.violet,1.7)
+    reaper.ImGui_DrawList_AddLine(dl,x+17,y+theme.px(8.5),x+17,y+theme.px(16.5),C.violet,1.7)
+    row_text(ctx,dl,x+29,y,math.max(0,avail-33),theme.px(25),C.text,'Add send…')
   end
   tooltip(ctx,initial_add and 'Click to choose a destination' or 'Click to add a send')
   -- This row lives in a nested child, while the popup is drawn in the Sends
@@ -1558,13 +1637,13 @@ local function rack_heights(ctx,height,fx,sends,receives)
   end
   local _,spacing=reaper.ImGui_GetStyleVar(ctx,reaper.ImGui_StyleVar_ItemSpacing())
   spacing=math.max(0,spacing or 4)
-  local usable=math.max(2,height-RACK_DIVIDER_HEIGHT-spacing*2)
+  local usable=math.max(2,height-theme.px(RACK_DIVIDER_HEIGHT)-spacing*2)
   -- Both sections keep a header and at least one useful row at normal sizes.
   -- Without a saved split, give longer lists proportionally more space.
   local minimum=math.min(60,usable/2)
-  local fx_need=FX_ROW_HEIGHT+math.max(5,#fx+1)*(FX_ROW_HEIGHT+spacing)
+  local fx_need=theme.px(FX_ROW_HEIGHT)+math.max(5,#fx+1)*(theme.px(FX_ROW_HEIGHT)+spacing)
   local send_slots=math.max(#receives>0 and 1 or MIN_SEND_SLOTS,#sends+1)
-  local send_need=22+(send_slots+#receives)*(25+spacing)+(#receives>0 and 26 or 0)
+  local send_need=theme.px(22)+(send_slots+#receives)*(theme.px(25)+spacing)+(#receives>0 and theme.px(26) or 0)
   local desired=M.fx_split and usable*M.fx_split
     or math.min(fx_need,usable*fx_need/(fx_need+send_need))
   local fx_height=math.floor(clamp(desired,minimum,usable-minimum))
@@ -1574,7 +1653,7 @@ end
 local function rack_divider(ctx,fx_height,usable,minimum)
   local x,y=reaper.ImGui_GetCursorScreenPos(ctx)
   local width=reaper.ImGui_GetContentRegionAvail(ctx) or 100
-  reaper.ImGui_InvisibleButton(ctx,'##rack_divider',math.max(1,width),RACK_DIVIDER_HEIGHT)
+  reaper.ImGui_InvisibleButton(ctx,'##rack_divider',math.max(1,width),theme.px(RACK_DIVIDER_HEIGHT))
   local hovered=reaper.ImGui_IsItemHovered(ctx)
   local active=reaper.ImGui_IsItemActive(ctx)
   local dl=reaper.ImGui_GetWindowDrawList(ctx)
@@ -1614,7 +1693,7 @@ function M.draw(ctx,track,state,height)
   -- A permanent, narrow gutter keeps header and row widths identical before
   -- and after overflow. The native thumb remains draggable; wheel ownership
   -- stays with controls through the shared manual scrolling helpers.
-  local gutter=RACK_GUTTER
+  local gutter=theme.px(RACK_GUTTER)
   local row_flags=reaper.ImGui_WindowFlags_AlwaysVerticalScrollbar()
   local section_flags=reaper.ImGui_WindowFlags_NoScrollbar()
   local fixed_section={fixed=true,padding=0}

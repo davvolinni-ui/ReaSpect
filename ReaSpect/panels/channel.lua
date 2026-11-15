@@ -13,10 +13,8 @@ local CIRCLE_SEGMENTS=48
 local STRIP_SCALE=0.75
 local CONTROL_SCALE=0.9
 local STRIP_WIDTH=78
-local STRIP_FONT_SIZE=(theme.font_sizes and theme.font_sizes.body) or 12
-local READOUT_FONT_SIZE=(theme.font_sizes and theme.font_sizes.readout) or 11
 local STRIP_STACK_SPACING=2
-local function compact_px(value,compact) return compact and value*CONTROL_SCALE or value end
+local function compact_px(value,compact) return theme.px(compact and value*CONTROL_SCALE or value) end
 local function seconds() return reaper.time_precise and reaper.time_precise() or os.clock() end
 
 local function db(v) if not v or v <= 0.000001 then return -math.huge end return 20 * math.log(v, 10) end
@@ -60,7 +58,7 @@ local function small_button(ctx, label, active, on, w, compact, on_set)
   reaper.ImGui_DrawList_AddRectFilled(dl,x+2,y+2,x+width-2,y+height-2,fill,1)
   reaper.ImGui_DrawList_AddLine(dl,x+3,y+2,x+width-3,y+2,0xB1B4B430,1)
   local large=reaper.ImGui_PushFont and reaper.ImGui_PopFont
-  if large then reaper.ImGui_PushFont(ctx,nil,compact and ((theme.font_sizes and theme.font_sizes.button) or 14) or 18) end
+  if large then reaper.ImGui_PushFont(ctx,nil,theme.px(compact and ((theme.font_sizes and theme.font_sizes.button) or 14) or 18)) end
   local tw,th=reaper.ImGui_CalcTextSize(ctx,kind)
   local tx,ty=x+(width-tw)/2,y+(height-th)/2-1
   reaper.ImGui_DrawList_AddText(dl,tx,ty,(theme.is_light and not active and theme.colors.text or 0xE8E9E9FF),kind)
@@ -382,11 +380,11 @@ local function input_button(ctx, track, width, state)
     edit(state,'Set record input',function(t,v)
       api.track.set_input(t,input_selector.source_value(api.track.input(t),v,preserve_channel))
     end,value)
-  end,18*CONTROL_SCALE)
+  end,theme.px(18*CONTROL_SCALE))
 end
 
 local function arm_button(ctx, track, active, automatic, on_click)
-  local u=CONTROL_SCALE
+  local u=theme.px(CONTROL_SCALE)
   local x, y = reaper.ImGui_GetCursorScreenPos(ctx)
   local dl = reaper.ImGui_GetWindowDrawList(ctx)
   if dl and reaper.ImGui_DrawList_AddCircleFilled then
@@ -569,12 +567,12 @@ end
 
 local function draw_compact(ctx,state,ah,expanded,narrow)
   local t=state.selected_track
-  local u=STRIP_SCALE
-  local strip_w=STRIP_WIDTH
+  local u=theme.px(STRIP_SCALE)
+  local strip_w=theme.px(STRIP_WIDTH)
   local right_padding=3*u
   -- Keep the compact controls intact; an exceptionally short parent panel
   -- can scroll instead of silently clipping its footer and lower buttons.
-  local strip_h=math.max(narrow and 150 or 128,ah)
+  local strip_h=math.max(theme.px(narrow and 150 or 128),ah)
   local no_scroll=(reaper.ImGui_WindowFlags_NoScrollbar and reaper.ImGui_WindowFlags_NoScrollbar() or 0)
     | (reaper.ImGui_WindowFlags_NoScrollWithMouse and reaper.ImGui_WindowFlags_NoScrollWithMouse() or 0)
   safe_child(ctx,'##compact_strip',strip_w,strip_h,no_scroll,function()
@@ -587,7 +585,7 @@ local function draw_compact(ctx,state,ah,expanded,narrow)
       reaper.ImGui_Dummy(ctx,0,2)
     end
     local strip_font=reaper.ImGui_PushFont and reaper.ImGui_PopFont
-    if strip_font then reaper.ImGui_PushFont(ctx,nil,STRIP_FONT_SIZE) end
+    if strip_font then reaper.ImGui_PushFont(ctx,nil,theme.px(theme.font_sizes.body or 12)) end
     local name=api.track.name(t)
     if name=='' then name='Track' end
     local zx,zy=reaper.ImGui_GetCursorScreenPos(ctx)
@@ -633,7 +631,7 @@ local function draw_compact(ctx,state,ah,expanded,narrow)
       reaper.ImGui_SetCursorScreenPos(ctx,zx+4*u,zy+40*u)
       input_button(ctx,t,math.min(56*u,zw-38*u),state)
       local resume_x,resume_y=reaper.ImGui_GetCursorScreenPos(ctx)
-      reaper.ImGui_SetCursorScreenPos(ctx,zx+zw-26*CONTROL_SCALE-right_padding,zy+40*u)
+      reaper.ImGui_SetCursorScreenPos(ctx,zx+zw-theme.px(26*CONTROL_SCALE)-right_padding,zy+40*u)
       arm_button(ctx,t,api.track.arm(t),api.track.auto_arm(t),
         function(v) edit(state,'Set record arm',api.track.set_arm,v) end)
       reaper.ImGui_SetCursorScreenPos(ctx,resume_x,resume_y)
@@ -642,7 +640,7 @@ local function draw_compact(ctx,state,ah,expanded,narrow)
       reaper.ImGui_SetCursorScreenPos(ctx,zx,zy+40*u)
     end
     local value_text=string.format('%.2f',fader_db(api.track.volume(t)))
-    if strip_font then reaper.ImGui_PushFont(ctx,nil,READOUT_FONT_SIZE) end
+    if strip_font then reaper.ImGui_PushFont(ctx,nil,theme.px(theme.font_sizes.readout or 11)) end
     local tw=reaper.ImGui_CalcTextSize(ctx,value_text)
     if reaper.ImGui_SetCursorPosX and reaper.ImGui_GetCursorPosX then
       reaper.ImGui_SetCursorPosX(ctx,reaper.ImGui_GetCursorPosX(ctx)+math.max(0,(zw-tw)/2-5*u))
@@ -660,14 +658,14 @@ local function draw_compact(ctx,state,ah,expanded,narrow)
     -- Reserve the widest scaled button as well as the fader and its gap.
     -- Their scales differ, so a fixed gain-reduction width can push the
     -- right-hand controls past the strip's content edge.
-    local button_width=26*CONTROL_SCALE
+    local button_width=theme.px(26*CONTROL_SCALE)
     local gr_width=math.max(0,math.min(10*u,zw-36*u-28*u-2*u-button_width-right_padding))
     local fader_x=bx+36*u+gr_width
     local buttons_x=fader_x+28*u+2*u
     reaper.ImGui_DrawList_AddRectFilled(dl,bx,by,bx+zw,by+travel,(theme.is_light and theme.colors.panel or 0x242629FF),1)
     local peak_l,peak_r=api.track.peak(t)
     reaper.ImGui_SetCursorScreenPos(ctx,bx,by)
-    if strip_font then reaper.ImGui_PushFont(ctx,nil,READOUT_FONT_SIZE) end
+    if strip_font then reaper.ImGui_PushFont(ctx,nil,theme.px(theme.font_sizes.readout or 11)) end
     meter.draw(ctx,peak_l,peak_r,36*u,'compact_'..tostring(t),travel,api.track.arm(t),t,u)
     if strip_font then reaper.ImGui_PopFont(ctx) end
     if gr_width>0 then
@@ -681,9 +679,9 @@ local function draw_compact(ctx,state,ah,expanded,narrow)
     else undo.gesture(ctx,'compact_volume','Set track volume',fchanged,function()
       control_each(state,t,ctx,function(tr) api.track.set_volume(tr,lin(fvalue)) end)
     end) end
-    local monitor_y=math.max(by-16*CONTROL_SCALE,zy+40*u+26*CONTROL_SCALE+2*u)
-    local button_y=expanded and math.max(by+14*u,monitor_y+20*CONTROL_SCALE+STRIP_STACK_SPACING*u) or by+4*u
-    local button_step=23*CONTROL_SCALE+STRIP_STACK_SPACING*u
+    local monitor_y=math.max(by-theme.px(16*CONTROL_SCALE),zy+40*u+theme.px(26*CONTROL_SCALE)+2*u)
+    local button_y=expanded and math.max(by+14*u,monitor_y+theme.px(20*CONTROL_SCALE)+STRIP_STACK_SPACING*u) or by+4*u
+    local button_step=theme.px(23*CONTROL_SCALE)+STRIP_STACK_SPACING*u
     reaper.ImGui_SetCursorScreenPos(ctx,buttons_x,button_y)
     small_button(ctx,'M##compact_mute',api.track.mute(t),function()
       local ctrl,alt,shift=key_mods(ctx); set_mute_group(state,t,ctrl,alt,shift)
@@ -702,10 +700,10 @@ local function draw_compact(ctx,state,ah,expanded,narrow)
     if expanded then
       -- Position each control independently: placing the monitor above M/S
       -- must not move the routing row back over those buttons.
-      reaper.ImGui_SetCursorScreenPos(ctx,buttons_x,bottom_y-40*CONTROL_SCALE-STRIP_STACK_SPACING*u)
+      reaper.ImGui_SetCursorScreenPos(ctx,buttons_x,bottom_y-theme.px(40*CONTROL_SCALE)-STRIP_STACK_SPACING*u)
       automation_button(ctx,api.track.automation(t),function() api.show_automation(t) end,true,
         function(v) edit(state,'Set automation mode',api.track.set_automation,v) end)
-      reaper.ImGui_SetCursorScreenPos(ctx,buttons_x,bottom_y-20*CONTROL_SCALE)
+      reaper.ImGui_SetCursorScreenPos(ctx,buttons_x,bottom_y-theme.px(20*CONTROL_SCALE))
       phase_button(ctx,api.track.phase(t),function(v) edit(state,'Toggle track phase',api.track.set_phase,v) end,true)
     end
 
@@ -725,7 +723,7 @@ local function draw_compact(ctx,state,ah,expanded,narrow)
     local number=reaper.GetMediaTrackInfo_Value(t,'IP_TRACKNUMBER') or 0
     local number_text=number>0 and tostring(math.floor(number)) or ' '
     reaper.ImGui_DrawList_AddRectFilled(dl,foot_x,foot_y+22*u,foot_x+window_w,foot_y+41*u,footer_track_color(api.track.color(t)))
-    if strip_font then reaper.ImGui_PushFont(ctx,nil,(theme.font_sizes and theme.font_sizes.caption) or 11) end
+    if strip_font then reaper.ImGui_PushFont(ctx,nil,theme.px((theme.font_sizes and theme.font_sizes.caption) or 11)) end
     local number_w=reaper.ImGui_CalcTextSize(ctx,number_text)
     reaper.ImGui_DrawList_AddText(dl,foot_x+(window_w-number_w)/2,foot_y+24*u,0x222427FF,number_text)
     if strip_font then reaper.ImGui_PopFont(ctx) end
@@ -741,14 +739,14 @@ function M.draw(ctx,state)
   local available_width,available_height=reaper.ImGui_GetContentRegionAvail(ctx)
   available_width,available_height=available_width or 280,available_height or 400
   local rack_only=state.channel_rack_only==true
-  local strip_width=STRIP_WIDTH
+  local strip_width=theme.px(STRIP_WIDTH)
   local narrow=available_width<=strip_width
   -- Budget the actual scaled header, readout, six controls and footer.
   -- The standalone strip also needs its FX header above the pan controls.
-  local stack_height=(23+23+26)*CONTROL_SCALE+(3+14+4*STRIP_STACK_SPACING)*STRIP_SCALE
-  local bottom_row=40*CONTROL_SCALE+STRIP_STACK_SPACING*STRIP_SCALE
-  local full_height=(64+41+2)*STRIP_SCALE+STRIP_FONT_SIZE+stack_height+bottom_row
-  local compact=available_height<full_height+(narrow and 28 or 0)
+  local stack_height=theme.px((23+23+26)*CONTROL_SCALE+(3+14+4*STRIP_STACK_SPACING)*STRIP_SCALE)
+  local bottom_row=theme.px(40*CONTROL_SCALE+STRIP_STACK_SPACING*STRIP_SCALE)
+  local full_height=theme.px((64+41+2)*STRIP_SCALE+(theme.font_sizes.body or 12))+stack_height+bottom_row
+  local compact=available_height<full_height+(narrow and theme.px(28) or 0)
   if M.last_compact~=nil and M.last_compact~=compact then undo.flush_gestures() end
   M.last_compact=compact
   if not rack_only then
